@@ -1,13 +1,14 @@
 document.addEventListener('dblclick', function(event) {
   const target = event.target;
   if (target && target.classList.contains('ytp-caption-segment')) {
-    const text = target.innerText;
     const range = document.caretRangeFromPoint(event.clientX, event.clientY);
     const offset = range.startOffset;
     const textNode = range.startContainer;
 
+    console.log('textNode:', textNode);
     if (textNode.nodeType === Node.TEXT_NODE) {
       const textContent = textNode.textContent;
+      console.log('textContent:', textContent);
 
       let wordStart = offset;
       let wordEnd = offset;
@@ -23,10 +24,20 @@ document.addEventListener('dblclick', function(event) {
       }
 
       const word = textContent.substring(wordStart, wordEnd).trim();
+      console.log('提取的单词:', word);
 
       if (word && !word.includes(' ')) { // 检查是否是单词
         console.log('提取的单词:', word);
-        translateWord(word, event.clientX, event.clientY);
+        
+        // 检查单词是否已经高亮
+        const highlightedWord = target.querySelector(`span[style*="background-color: #FFD700;"][data-word="${word}"]`);
+        if (highlightedWord) {
+          // 如果单词已经高亮，从生词本中删除
+          removeFromWordList(word);
+        } else {
+          // 如果单词未高亮，翻译并显示tooltip
+          translateWord(word, event.clientX, event.clientY);
+        }
       }
     }
   }
@@ -81,13 +92,28 @@ function showTooltip(word, translation, x, y) {
 }
 
 // 添加新函数
-function highlightWord(word) {
+function removeFromWordList(word) {
+  chrome.runtime.sendMessage({ action: 'removeFromWordList', word: word }, (response) => {
+    if (response && response.success) {
+      console.log('从生词本中删除单词:', word);
+      removeHighlight(word);
+    } else {
+      console.error('删除单词失败:', word);
+    }
+  });
+}
+
+// 添加新函数
+function removeHighlight(word) {
   const elements = document.getElementsByClassName('ytp-caption-segment');
   for (let element of elements) {
-    const text = element.innerText;
-    if (text.includes(word)) {
-      element.innerHTML = text.replace(new RegExp(`\\b${word}\\b`, 'g'), `<span style="background-color: #FFD700;">${word}</span>`);
-    }
+    const highlightedSpans = element.querySelectorAll(`span[style*="background-color: #FFD700;"]`);
+    highlightedSpans.forEach(span => {
+      if (span.textContent === word) {
+        const textNode = document.createTextNode(word);
+        span.parentNode.replaceChild(textNode, span);
+      }
+    });
   }
 }
 
@@ -121,3 +147,14 @@ function observeCaptions() {
 
 // 开始观察字幕
 observeCaptions();
+
+// 添加新函数
+function highlightWord(word) {
+  const elements = document.getElementsByClassName('ytp-caption-segment');
+  for (let element of elements) {
+    const text = element.innerText;
+    if (text.includes(word)) {
+      element.innerHTML = text.replace(new RegExp(`\\b${word}\\b`, 'g'), `<span style="background-color: #FFD700;">${word}</span>`);
+    }
+  }
+}

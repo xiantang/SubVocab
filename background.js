@@ -41,5 +41,15 @@ chrome.runtime.onInstalled.addListener(() => {
         sendResponse({ wordList: result.wordList });
       });
       return true; // 保持消息通道开放
+    } else if (request.action === 'removeFromWordList') {
+      const wordToRemove = request.word;
+      chrome.storage.local.get({ wordList: [] }, function(result) {
+        const wordList = result.wordList;
+        const updatedWordList = wordList.filter(item => item.word.toLowerCase() !== wordToRemove.toLowerCase());
+        chrome.storage.local.set({ wordList: updatedWordList }, () => {
+          sendResponse({ success: true });
+        });
+      });
+      return true; // 保持消息通道开放
     }
   });
