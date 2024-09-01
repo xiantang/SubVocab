@@ -1,4 +1,4 @@
-document.addEventListener('click', function(event) {
+document.addEventListener('dblclick', function(event) {
   const target = event.target;
   if (target && target.classList.contains('ytp-caption-segment')) {
     const text = target.innerText;
@@ -25,13 +25,13 @@ document.addEventListener('click', function(event) {
       const word = textContent.substring(wordStart, wordEnd).trim();
 
       if (word && !word.includes(' ')) { // 检查是否是单词
-        translateWord(word);
+        translateWord(word, event.clientX, event.clientY);
       }
     }
   }
 });
 
-function translateWord(word) {
+function translateWord(word, x, y) {
   const apiUrl = `https://api.mymemory.translated.net/get?q=${word}&langpair=en|zh-CN`;
 
   fetch(apiUrl)
@@ -39,10 +39,39 @@ function translateWord(word) {
     .then(data => {
       if (data.responseData && data.responseData.translatedText) {
         const translation = data.responseData.translatedText;
-        console.log(`翻译: ${translation}`);
+        showTooltip(word, translation, x, y);
       }
     })
     .catch(error => {
       console.error('翻译失败:', error);
     });
+}
+
+function showTooltip(word, translation, x, y) {
+  const tooltip = document.createElement('div');
+  tooltip.className = 'translation-tooltip';
+  tooltip.style.position = 'absolute';
+  tooltip.style.left = `${x}px`;
+  tooltip.style.top = `${y}px`;
+  tooltip.style.backgroundColor = 'white';
+  tooltip.style.border = '1px solid black';
+  tooltip.style.padding = '5px';
+  tooltip.style.zIndex = 1000;
+  tooltip.innerHTML = `
+    <div>${word}: ${translation}</div>
+    <button id="addToWordList">加入生词本</button>
+  `;
+
+  document.body.appendChild(tooltip);
+
+  document.getElementById('addToWordList').addEventListener('click', function() {
+    chrome.runtime.sendMessage({ action: 'addToWordList', word: word });
+    document.body.removeChild(tooltip);
+  });
+
+  setTimeout(() => {
+    if (document.body.contains(tooltip)) {
+      document.body.removeChild(tooltip);
+    }
+  }, 5000);
 }

@@ -22,5 +22,12 @@ chrome.runtime.onInstalled.addListener(() => {
       // 使用翻译 API 进行翻译，这里用假数据代替
       const translation = `翻译的${request.word}`;
       sendResponse({ translation });
+    } else if (request.action === 'addToWordList') {
+      const word = request.word;
+      chrome.storage.local.get({ wordList: [] }, function(result) {
+        const wordList = result.wordList;
+        wordList.push({ word, familiarity: 0 });
+        chrome.storage.local.set({ wordList });
+      });
     }
   });
