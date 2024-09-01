@@ -25,6 +25,7 @@ document.addEventListener('dblclick', function(event) {
       const word = textContent.substring(wordStart, wordEnd).trim();
 
       if (word && !word.includes(' ')) { // 检查是否是单词
+        console.log('提取的单词:', word);
         translateWord(word, event.clientX, event.clientY);
       }
     }
@@ -65,8 +66,11 @@ function showTooltip(word, translation, x, y) {
   document.body.appendChild(tooltip);
 
   document.getElementById('addToWordList').addEventListener('click', function() {
-    chrome.runtime.sendMessage({ action: 'addToWordList', word: word });
-    document.body.removeChild(tooltip);
+    chrome.runtime.sendMessage({ action: 'addToWordList', word: word }, (response) => {
+      console.log('添加单词到生词本:', response);
+        highlightWord(word);
+        document.body.removeChild(tooltip);
+    });
   });
 
   setTimeout(() => {
@@ -75,3 +79,45 @@ function showTooltip(word, translation, x, y) {
     }
   }, 5000);
 }
+
+// 添加新函数
+function highlightWord(word) {
+  const elements = document.getElementsByClassName('ytp-caption-segment');
+  for (let element of elements) {
+    const text = element.innerText;
+    if (text.includes(word)) {
+      element.innerHTML = text.replace(new RegExp(`\\b${word}\\b`, 'g'), `<span style="background-color: #FFD700;">${word}</span>`);
+    }
+  }
+}
+
+// 在文档加载完成后检查并高亮已添加的单词
+chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
+  if (response && response.wordList) {
+    response.wordList.forEach(word => highlightWord(word));
+  }
+});
+
+// 监听 YouTube 字幕变化
+function observeCaptions() {
+  const captionsContainer = document.querySelector('.ytp-caption-window-container');
+  if (captionsContainer) {
+    const observer = new MutationObserver(() => {
+      chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
+        if (response && response.wordList) {
+          response.wordList.forEach(item => highlightWord(item.word));
+        } else {
+          console.error('无法获取单词列表或列表为空');
+        }
+      });
+    });
+
+    observer.observe(captionsContainer, { childList: true, subtree: true });
+  } else {
+    // 如果字幕容器还不存在，稍后再试
+    setTimeout(observeCaptions, 1000);
+  }
+}
+
+// 开始观察字幕
+observeCaptions();

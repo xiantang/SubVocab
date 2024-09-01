@@ -26,8 +26,20 @@ chrome.runtime.onInstalled.addListener(() => {
       const word = request.word;
       chrome.storage.local.get({ wordList: [] }, function(result) {
         const wordList = result.wordList;
-        wordList.push({ word, familiarity: 0 });
-        chrome.storage.local.set({ wordList });
+        if (!wordList.some(item => item.word.toLowerCase() === word.toLowerCase())) {
+          wordList.push({ word, familiarity: 0 });
+          chrome.storage.local.set({ wordList }, () => {
+            sendResponse({ success: true });
+          });
+        } else {
+          sendResponse({ success: false, message: '单词已存在' });
+        }
       });
+      return true; // 保持消息通道开放
+    } else if (request.action === 'getWordList') {
+      chrome.storage.local.get({ wordList: [] }, function(result) {
+        sendResponse({ wordList: result.wordList });
+      });
+      return true; // 保持消息通道开放
     }
   });
