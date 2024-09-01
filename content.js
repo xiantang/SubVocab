@@ -25,12 +25,24 @@ document.addEventListener('click', function(event) {
       const word = textContent.substring(wordStart, wordEnd).trim();
 
       if (word && !word.includes(' ')) { // 检查是否是单词
-        chrome.runtime.sendMessage({ action: 'translate', word: word }, function(response) {
-          if (response && response.translation) {
-            alert(`翻译: ${response.translation}`);
-          }
-        });
+        translateWord(word);
       }
     }
   }
 });
+
+function translateWord(word) {
+  const apiUrl = `https://api.mymemory.translated.net/get?q=${word}&langpair=en|zh-CN`;
+
+  fetch(apiUrl)
+    .then(response => response.json())
+    .then(data => {
+      if (data.responseData && data.responseData.translatedText) {
+        const translation = data.responseData.translatedText;
+        console.log(`翻译: ${translation}`);
+      }
+    })
+    .catch(error => {
+      console.error('翻译失败:', error);
+    });
+}
