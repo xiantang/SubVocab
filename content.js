@@ -340,7 +340,20 @@ function removeHighlight(word) {
 function initializeHighlights() {
   chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
     if (response && response.wordList) {
-      response.wordList.forEach(item => highlightWord(item.word));
+      response.wordList.forEach(item => {
+        highlightWord(item.word);
+      });
+      
+      // 为所有已高亮的单词添加hover事件
+      setTimeout(() => {
+        const highlightedWords = document.querySelectorAll('.highlighted-word');
+        highlightedWords.forEach(span => {
+          const word = span.dataset.word;
+          if (word) {
+            addHoverTranslation(span, word);
+          }
+        });
+      }, 100);
     }
   });
 }
@@ -366,6 +379,18 @@ function observeCaptions() {
       chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
         if (response && response.wordList) {
           response.wordList.forEach(item => highlightWord(item.word));
+          
+          // 为新高亮的单词添加hover事件
+          setTimeout(() => {
+            const highlightedWords = document.querySelectorAll('.highlighted-word');
+            highlightedWords.forEach(span => {
+              const word = span.dataset.word;
+              if (word && !span.hasAttribute('data-hover-added')) {
+                addHoverTranslation(span, word);
+                span.setAttribute('data-hover-added', 'true');
+              }
+            });
+          }, 100);
         }
       });
     });
@@ -406,7 +431,7 @@ function highlightWord(word) {
         if (nodeText.includes(word)) {
           const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
           if (regex.test(nodeText)) {
-            const newHTML = nodeText.replace(regex, `<span style="background-color: #FFD700;" data-word="${word}">${word}</span>`);
+            const newHTML = nodeText.replace(regex, `<span style="background-color: #FFD700; cursor: pointer;" data-word="${word}" class="highlighted-word">${word}</span>`);
             const newElement = document.createElement('span');
             newElement.innerHTML = newHTML;
             textNode.parentNode.insertBefore(newElement, textNode);
@@ -416,6 +441,12 @@ function highlightWord(word) {
       });
       
       element.innerHTML = tempDiv.innerHTML;
+      
+      // 为新添加的高亮单词添加hover事件
+      const newHighlightedWords = element.querySelectorAll(`span[data-word="${word}"]`);
+      newHighlightedWords.forEach(span => {
+        addHoverTranslation(span, word);
+      });
     }
   }
 }
@@ -438,4 +469,74 @@ function getTextNodes(element) {
   }
   
   return textNodes;
+}
+
+// 为高亮单词添加hover翻译功能
+function addHoverTranslation(span, word) {
+  // 避免重复添加事件
+  if (span.hasAttribute('data-hover-added')) {
+    return;
+  }
+  span.setAttribute('data-hover-added', 'true');
+  
+  let hoverTooltip = null;
+  let hoverTimeout = null;
+
+  span.addEventListener('mouseenter', function(e) {
+    // 延迟显示tooltip，避免快速划过时闪烁
+    hoverTimeout = setTimeout(() => {
+      // 获取单词的翻译
+      chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
+        if (response && response.wordList) {
+          const wordObj = response.wordList.find(item => item.word.toLowerCase() === word.toLowerCase());
+          if (wordObj && wordObj.translation) {
+            showHoverTooltip(wordObj.word, wordObj.translation, e.clientX, e.clientY);
+          }
+        }
+      });
+    }, 500); // 500ms延迟
+  });
+
+  span.addEventListener('mouseleave', function() {
+    // 清除延迟显示的timeout
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      hoverTimeout = null;
+    }
+    // 隐藏tooltip
+    hideHoverTooltip();
+  });
+}
+
+// 显示hover tooltip
+function showHoverTooltip(word, translation, x, y) {
+  // 移除已存在的hover tooltip
+  hideHoverTooltip();
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'hover-translation-tooltip';
+  tooltip.style.position = 'fixed';
+  tooltip.style.left = `${x + 10}px`;
+  tooltip.style.top = `${y - 30}px`;
+  tooltip.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+  tooltip.style.color = 'white';
+  tooltip.style.padding = '6px 10px';
+  tooltip.style.borderRadius = '4px';
+  tooltip.style.fontSize = '12px';
+  tooltip.style.zIndex = '10000';
+  tooltip.style.pointerEvents = 'none';
+  tooltip.style.maxWidth = '200px';
+  tooltip.style.wordWrap = 'break-word';
+  
+  tooltip.innerHTML = `<strong>${word}</strong>: ${translation}`;
+  
+  document.body.appendChild(tooltip);
+}
+
+// 隐藏hover tooltip
+function hideHoverTooltip() {
+  const existingTooltip = document.querySelector('.hover-translation-tooltip');
+  if (existingTooltip) {
+    document.body.removeChild(existingTooltip);
+  }
 }
