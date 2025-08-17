@@ -198,6 +198,7 @@ async function translateWithOpenAI(word, sentence, x, y) {
       if (response.ok) {
         const data = await response.json();
         const translation = data.choices[0].message.content.trim();
+        console.log("openai translation: " + translation)
         showTooltip(word, translation, x, y);
       } else {
         console.error('OpenAI API请求失败:', response.status);
