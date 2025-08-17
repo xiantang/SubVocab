@@ -540,3 +540,48 @@ function hideHoverTooltip() {
     document.body.removeChild(existingTooltip);
   }
 }
+
+// YouTube视频暂停/恢复功能
+let wasPlayingBeforeHover = false;
+let hoverPauseTimeout = null;
+
+function setupCaptionHoverPause() {
+  const captionsContainer = document.querySelector('.ytp-caption-window-container');
+  if (captionsContainer) {
+    captionsContainer.addEventListener('mouseenter', function() {
+      // 延迟暂停，避免快速划过时暂停
+      hoverPauseTimeout = setTimeout(() => {
+        const video = document.querySelector('video');
+        if (video && !video.paused) {
+          wasPlayingBeforeHover = true;
+          video.pause();
+          console.log('字幕悬停：视频已暂停');
+        }
+      }, 200); // 200ms延迟
+    });
+
+    captionsContainer.addEventListener('mouseleave', function() {
+      // 清除延迟暂停的timeout
+      if (hoverPauseTimeout) {
+        clearTimeout(hoverPauseTimeout);
+        hoverPauseTimeout = null;
+      }
+      
+      // 如果之前是播放状态，恢复播放
+      const video = document.querySelector('video');
+      if (video && wasPlayingBeforeHover) {
+        video.play();
+        wasPlayingBeforeHover = false;
+        console.log('字幕离开：视频已恢复播放');
+      }
+    });
+    
+    console.log('字幕悬停暂停功能已启用');
+  } else {
+    // 如果字幕容器还不存在，稍后再试
+    setTimeout(setupCaptionHoverPause, 1000);
+  }
+}
+
+// 启动字幕悬停暂停功能
+setupCaptionHoverPause();
