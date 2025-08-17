@@ -1,5 +1,15 @@
 document.addEventListener('dblclick', function(event) {
   const target = event.target;
+  
+  // 检查是否直接点击在高亮的span上
+  if (target && target.tagName === 'SPAN' && target.dataset.word) {
+    const word = target.dataset.word;
+    console.log('点击已高亮单词:', word);
+    showRemoveConfirmation(word, event.clientX, event.clientY);
+    return;
+  }
+  
+  // 检查是否点击在字幕区域
   if (target && target.classList.contains('ytp-caption-segment')) {
     const range = document.caretRangeFromPoint(event.clientX, event.clientY);
     const offset = range.startOffset;
@@ -29,19 +39,94 @@ document.addEventListener('dblclick', function(event) {
       if (word && !word.includes(' ')) { // 检查是否是单词
         console.log('提取的单词:', word);
         
-        // 检查单词是否已经高亮
-        const highlightedWord = target.querySelector(`span[style*="background-color: #FFD700;"][data-word="${word}"]`);
-        if (highlightedWord) {
-          // 如果单词已经高亮，从生词本中删除
-          removeFromWordList(word);
-        } else {
-          // 如果单词未高亮，翻译并显示tooltip
-          translateWord(word, event.clientX, event.clientY);
-        }
+        // 检查单词是否已经在生词本中
+        chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
+          if (response && response.wordList) {
+            const isInWordList = response.wordList.some(item => item.word.toLowerCase() === word.toLowerCase());
+            if (isInWordList) {
+              // 如果单词已在生词本中，显示删除确认
+              showRemoveConfirmation(word, event.clientX, event.clientY);
+            } else {
+              // 如果单词未在生词本中，翻译并显示tooltip
+              translateWord(word, event.clientX, event.clientY);
+            }
+          } else {
+            // 无法获取生词本，直接翻译
+            translateWord(word, event.clientX, event.clientY);
+          }
+        });
       }
     }
   }
 });
+
+function showRemoveConfirmation(word, x, y) {
+  // 移除已存在的确认框
+  const existingTooltip = document.querySelector('.remove-confirmation-tooltip');
+  if (existingTooltip) {
+    document.body.removeChild(existingTooltip);
+  }
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'remove-confirmation-tooltip';
+  tooltip.style.position = 'absolute';
+  tooltip.style.left = `${x}px`;
+  tooltip.style.top = `${y}px`;
+  tooltip.style.backgroundColor = 'white';
+  tooltip.style.border = '1px solid black';
+  tooltip.style.padding = '10px';
+  tooltip.style.zIndex = 1000;
+  tooltip.style.borderRadius = '5px';
+  tooltip.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+  
+  const uniqueId = Date.now();
+  tooltip.innerHTML = `
+    <div style="margin-bottom: 8px;">
+      <strong>${word}</strong> 已在生词本中
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button id="removeBtn_${uniqueId}" style="background-color: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">移除</button>
+      <button id="cancelBtn_${uniqueId}" style="background-color: #888; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">取消</button>
+    </div>
+  `;
+
+  document.body.appendChild(tooltip);
+
+  document.getElementById(`removeBtn_${uniqueId}`).addEventListener('click', function() {
+    removeFromWordList(word);
+    if (document.body.contains(tooltip)) {
+      document.body.removeChild(tooltip);
+    }
+  });
+
+  document.getElementById(`cancelBtn_${uniqueId}`).addEventListener('click', function() {
+    if (document.body.contains(tooltip)) {
+      document.body.removeChild(tooltip);
+    }
+  });
+
+  // 点击其他地方关闭tooltip
+  const closeHandler = function(event) {
+    if (!tooltip.contains(event.target)) {
+      if (document.body.contains(tooltip)) {
+        document.body.removeChild(tooltip);
+      }
+      document.removeEventListener('click', closeHandler);
+    }
+  };
+  
+  setTimeout(() => {
+    document.addEventListener('click', closeHandler);
+  }, 100);
+
+  // 5秒后自动关闭
+  setTimeout(() => {
+    if (document.body.contains(tooltip)) {
+      document.body.removeChild(tooltip);
+      document.removeEventListener('click', closeHandler);
+    }
+  }, 5000);
+}
 
 function translateWord(word, x, y) {
   const apiUrl = `https://api.mymemory.translated.net/get?q=${word}&langpair=en|zh-CN`;
@@ -118,11 +203,26 @@ function removeHighlight(word) {
 }
 
 // 在文档加载完成后检查并高亮已添加的单词
-chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
-  if (response && response.wordList) {
-    response.wordList.forEach(word => highlightWord(word));
+function initializeHighlights() {
+  chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
+    if (response && response.wordList) {
+      response.wordList.forEach(item => highlightWord(item.word));
+    }
+  });
+}
+
+// 页面加载后执行
+setTimeout(initializeHighlights, 1000);
+
+// 监听页面变化，重新应用高亮
+let lastUrl = location.href;
+const urlObserver = new MutationObserver(() => {
+  if (location.href !== lastUrl) {
+    lastUrl = location.href;
+    setTimeout(initializeHighlights, 2000); // 等待新页面加载
   }
 });
+urlObserver.observe(document, { subtree: true, childList: true });
 
 // 监听 YouTube 字幕变化
 function observeCaptions() {
@@ -132,8 +232,6 @@ function observeCaptions() {
       chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
         if (response && response.wordList) {
           response.wordList.forEach(item => highlightWord(item.word));
-        } else {
-          console.error('无法获取单词列表或列表为空');
         }
       });
     });
@@ -152,9 +250,17 @@ observeCaptions();
 function highlightWord(word) {
   const elements = document.getElementsByClassName('ytp-caption-segment');
   for (let element of elements) {
+    // 检查是否已经包含该单词的高亮
+    const existingHighlight = element.querySelector(`span[data-word="${word}"]`);
+    if (existingHighlight) {
+      continue; // 已经高亮，跳过
+    }
+    
     const text = element.innerText;
     if (text.includes(word)) {
-      element.innerHTML = text.replace(new RegExp(`\\b${word}\\b`, 'g'), `<span style="background-color: #FFD700;">${word}</span>`);
+      // 使用正则表达式匹配完整单词，并添加data-word属性
+      const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      element.innerHTML = text.replace(regex, `<span style="background-color: #FFD700;" data-word="${word}">${word}</span>`);
     }
   }
 }
