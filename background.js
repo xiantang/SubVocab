@@ -11,7 +11,7 @@ chrome.runtime.onInstalled.addListener(() => {
       const word = info.selectionText.trim();
       chrome.storage.local.get({ wordList: [] }, function(result) {
         const wordList = result.wordList;
-        wordList.push({ word, familiarity: 0 });
+        wordList.push({ word, familiarity: 0, translation: '' });
         chrome.storage.local.set({ wordList });
       });
     }
@@ -24,10 +24,11 @@ chrome.runtime.onInstalled.addListener(() => {
       sendResponse({ translation });
     } else if (request.action === 'addToWordList') {
       const word = request.word;
+      const translation = request.translation || '';
       chrome.storage.local.get({ wordList: [] }, function(result) {
         const wordList = result.wordList;
         if (!wordList.some(item => item.word.toLowerCase() === word.toLowerCase())) {
-          wordList.push({ word, familiarity: 0 });
+          wordList.push({ word, familiarity: 0, translation });
           chrome.storage.local.set({ wordList }, () => {
             sendResponse({ success: true });
           });

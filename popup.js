@@ -12,7 +12,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const wordDiv = document.createElement('div');
         wordDiv.className = 'word';
         wordDiv.innerHTML = `
-          <span class="word-text">${wordObj.word}</span>
+          <div class="word-content">
+            <span class="word-text">${wordObj.word}</span>
+            ${wordObj.translation ? `<span class="translation">${wordObj.translation}</span>` : ''}
+          </div>
           <span class="familiarity">${'★'.repeat(wordObj.familiarity)}</span>
           <button class="delete-btn">删除</button>
         `;

@@ -229,7 +229,13 @@ function translateWord(word, x, y) {
     });
 }
 
+// 存储当前翻译结果的全局变量
+let currentTranslation = '';
+
 function showTooltip(word, translation, x, y) {
+  // 存储当前翻译结果
+  currentTranslation = translation;
+  
   // 移除已存在的翻译框
   const existingTooltip = document.querySelector('.translation-tooltip');
   if (existingTooltip) {
@@ -262,7 +268,11 @@ function showTooltip(word, translation, x, y) {
   document.body.appendChild(tooltip);
 
   document.getElementById(`addBtn_${uniqueId}`).addEventListener('click', function() {
-    chrome.runtime.sendMessage({ action: 'addToWordList', word: word }, (response) => {
+    chrome.runtime.sendMessage({ 
+      action: 'addToWordList', 
+      word: word, 
+      translation: currentTranslation 
+    }, (response) => {
       console.log('添加单词到生词本:', response);
       highlightWord(word);
       if (document.body.contains(tooltip)) {
