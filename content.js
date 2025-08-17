@@ -23,13 +23,13 @@ document.addEventListener('dblclick', function(event) {
       let wordStart = offset;
       let wordEnd = offset;
 
-      // 向前找到单词的开始
-      while (wordStart > 0 && /\S/.test(textContent[wordStart - 1])) {
+      // 向前找到单词的开始 - 只匹配字母和数字
+      while (wordStart > 0 && /[a-zA-Z0-9]/.test(textContent[wordStart - 1])) {
         wordStart--;
       }
 
-      // 向后找到单词的结束
-      while (wordEnd < textContent.length && /\S/.test(textContent[wordEnd])) {
+      // 向后找到单词的结束 - 只匹配字母和数字
+      while (wordEnd < textContent.length && /[a-zA-Z0-9]/.test(textContent[wordEnd])) {
         wordEnd++;
       }
 
