@@ -4,6 +4,38 @@
   <meta charset="UTF-8">
   <title>生词本</title>
   <style>
+    body {
+      margin: 0;
+      padding: 12px;
+      min-width: 300px;
+      font-family: Arial, sans-serif;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      color: #333;
+    }
+    .export-btn {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background-color 0.2s;
+    }
+    .export-btn:hover {
+      background-color: #0056b3;
+    }
     .word { 
       display: flex; 
       justify-content: space-between; 
@@ -36,7 +68,10 @@
   </style>
 </head>
 <body>
-  <h1>生词本</h1>
+  <div class="header">
+    <h1>生词本</h1>
+    <button id="exportBtn" class="export-btn">导出到剪切板</button>
+  </div>
   <div id="wordList"></div>
   <script src="popup.js"></script>
 </body>

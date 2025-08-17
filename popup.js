@@ -34,6 +34,41 @@ document.addEventListener('DOMContentLoaded', function() {
         wordListDiv.appendChild(wordDiv);
       });
     });
+
+    // 导出到剪切板功能
+    document.getElementById('exportBtn').addEventListener('click', function() {
+      chrome.storage.local.get({ wordList: [] }, function(result) {
+        const wordList = result.wordList;
+        if (wordList.length === 0) {
+          alert('生词本为空，无法导出');
+          return;
+        }
+
+        // 格式化导出内容
+        let exportText = '生词本导出\n\n';
+        wordList.forEach((wordObj, index) => {
+          const familiarityText = '★'.repeat(wordObj.familiarity) || '未标记';
+          exportText += `${index + 1}. ${wordObj.word} (熟悉度: ${familiarityText})\n`;
+        });
+        exportText += `\n总计: ${wordList.length} 个单词`;
+
+        // 复制到剪切板
+        navigator.clipboard.writeText(exportText).then(function() {
+          // 显示成功提示
+          const btn = document.getElementById('exportBtn');
+          const originalText = btn.textContent;
+          btn.textContent = '已复制!';
+          btn.style.backgroundColor = '#28a745';
+          setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.backgroundColor = '#007bff';
+          }, 2000);
+        }).catch(function(err) {
+          console.error('复制失败:', err);
+          alert('复制失败，请手动复制');
+        });
+      });
+    });
   
     function getColor(familiarity) {
       switch (familiarity) {
