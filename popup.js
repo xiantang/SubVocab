@@ -7,15 +7,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const wordDiv = document.createElement('div');
         wordDiv.className = 'word';
         wordDiv.innerHTML = `
-          <span>${wordObj.word}</span>
-          <span>${'★'.repeat(wordObj.familiarity)}</span>
+          <span class="word-text">${wordObj.word}</span>
+          <span class="familiarity">${'★'.repeat(wordObj.familiarity)}</span>
+          <button class="delete-btn">删除</button>
         `;
         wordDiv.style.backgroundColor = getColor(wordObj.familiarity);
-        wordDiv.addEventListener('click', function() {
+        // 熟悉度点击事件
+        wordDiv.querySelector('.familiarity').addEventListener('click', function(e) {
+          e.stopPropagation();
           wordObj.familiarity = (wordObj.familiarity + 1) % 4;
           chrome.storage.local.set({ wordList });
-          wordDiv.querySelector('span:nth-child(2)').textContent = '★'.repeat(wordObj.familiarity);
+          this.textContent = '★'.repeat(wordObj.familiarity);
           wordDiv.style.backgroundColor = getColor(wordObj.familiarity);
+        });
+
+        // 删除按钮点击事件
+        wordDiv.querySelector('.delete-btn').addEventListener('click', function(e) {
+          e.stopPropagation();
+          const index = wordList.indexOf(wordObj);
+          if (index > -1) {
+            wordList.splice(index, 1);
+            chrome.storage.local.set({ wordList });
+            wordDiv.remove();
+          }
         });
         wordListDiv.appendChild(wordDiv);
       });

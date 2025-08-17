@@ -4,8 +4,35 @@
   <meta charset="UTF-8">
   <title>生词本</title>
   <style>
-    .word { display: flex; justify-content: space-between; }
-    .word span { cursor: pointer; }
+    .word { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+      padding: 8px;
+      margin: 4px 0;
+      border-radius: 4px;
+    }
+    .word-text { 
+      flex: 1;
+      margin-right: 8px;
+    }
+    .familiarity { 
+      cursor: pointer; 
+      margin-right: 8px;
+      user-select: none;
+    }
+    .delete-btn {
+      background-color: #ff4444;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .delete-btn:hover {
+      background-color: #cc0000;
+    }
   </style>
 </head>
 <body>
