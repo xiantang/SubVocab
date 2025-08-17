@@ -379,11 +379,52 @@ function highlightWord(word) {
       continue; // 已经高亮，跳过
     }
     
+    // 使用innerHTML而不是innerText，这样可以处理已经存在的HTML标签
+    const currentHTML = element.innerHTML;
     const text = element.innerText;
+    
     if (text.includes(word)) {
-      // 使用正则表达式匹配完整单词，并添加data-word属性
-      const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-      element.innerHTML = text.replace(regex, `<span style="background-color: #FFD700;" data-word="${word}">${word}</span>`);
+      // 创建一个临时div来处理HTML内容
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = currentHTML;
+      
+      // 遍历所有文本节点
+      const textNodes = getTextNodes(tempDiv);
+      textNodes.forEach(textNode => {
+        const nodeText = textNode.textContent;
+        if (nodeText.includes(word)) {
+          const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+          if (regex.test(nodeText)) {
+            const newHTML = nodeText.replace(regex, `<span style="background-color: #FFD700;" data-word="${word}">${word}</span>`);
+            const newElement = document.createElement('span');
+            newElement.innerHTML = newHTML;
+            textNode.parentNode.insertBefore(newElement, textNode);
+            textNode.parentNode.removeChild(textNode);
+          }
+        }
+      });
+      
+      element.innerHTML = tempDiv.innerHTML;
     }
   }
+}
+
+// 获取所有文本节点的辅助函数
+function getTextNodes(element) {
+  const textNodes = [];
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false
+  );
+  
+  let node;
+  while (node = walker.nextNode()) {
+    if (node.textContent.trim()) {
+      textNodes.push(node);
+    }
+  }
+  
+  return textNodes;
 }
