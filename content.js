@@ -48,11 +48,13 @@ document.addEventListener('dblclick', function(event) {
               showRemoveConfirmation(word, event.clientX, event.clientY);
             } else {
               // 如果单词未在生词本中，翻译并显示tooltip
-              translateWord(word, event.clientX, event.clientY);
+              const sentence = getSentenceContext(textContent, wordStart, wordEnd);
+              translateWordWithContext(word, sentence, event.clientX, event.clientY);
             }
           } else {
             // 无法获取生词本，直接翻译
-            translateWord(word, event.clientX, event.clientY);
+            const sentence = getSentenceContext(textContent, wordStart, wordEnd);
+            translateWordWithContext(word, sentence, event.clientX, event.clientY);
           }
         });
       }
@@ -126,6 +128,88 @@ function showRemoveConfirmation(word, x, y) {
       document.removeEventListener('click', closeHandler);
     }
   }, 5000);
+}
+
+function getSentenceContext(textContent, wordStart, wordEnd) {
+  // 获取完整的句子作为语境
+  let sentenceStart = 0;
+  let sentenceEnd = textContent.length;
+  
+  // 向前查找句号、感叹号、问号等句子分隔符
+  for (let i = wordStart - 1; i >= 0; i--) {
+    if (/[.!?]/.test(textContent[i])) {
+      sentenceStart = i + 1;
+      break;
+    }
+  }
+  
+  // 向后查找句号、感叹号、问号等句子分隔符
+  for (let i = wordEnd; i < textContent.length; i++) {
+    if (/[.!?]/.test(textContent[i])) {
+      sentenceEnd = i + 1;
+      break;
+    }
+  }
+  
+  return textContent.substring(sentenceStart, sentenceEnd).trim();
+}
+
+function translateWordWithContext(word, sentence, x, y) {
+  // 首先检查是否有OpenAI API Key
+  chrome.storage.local.get({ openaiApiKey: '' }, function(result) {
+    if (result.openaiApiKey) {
+      // 使用OpenAI翻译
+      translateWithOpenAI(word, sentence, x, y);
+    } else {
+      // 回退到原来的翻译方式
+      translateWord(word, x, y);
+    }
+  });
+}
+
+async function translateWithOpenAI(word, sentence, x, y) {
+  chrome.storage.local.get({ openaiApiKey: '' }, async function(result) {
+    const apiKey = result.openaiApiKey;
+    
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: '你是一个专业的英语翻译助手。请根据给定的句子语境，为指定的英文单词提供最准确的中文翻译。只需要返回翻译结果，不需要其他解释。'
+            },
+            {
+              role: 'user',
+              content: `请翻译句子"${sentence}"中的单词"${word}"。只返回中文翻译，不要其他内容。`
+            }
+          ],
+          max_tokens: 100,
+          temperature: 0.3
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const translation = data.choices[0].message.content.trim();
+        showTooltip(word, translation, x, y);
+      } else {
+        console.error('OpenAI API请求失败:', response.status);
+        // 回退到原来的翻译方式
+        translateWord(word, x, y);
+      }
+    } catch (error) {
+      console.error('OpenAI翻译失败:', error);
+      // 回退到原来的翻译方式
+      translateWord(word, x, y);
+    }
+  });
 }
 
 function translateWord(word, x, y) {

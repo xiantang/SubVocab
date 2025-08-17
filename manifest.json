@@ -4,6 +4,7 @@
     "version": "1.0",
     "description": "newword",
     "permissions": ["storage", "activeTab", "contextMenus"],
+    "host_permissions": ["https://api.openai.com/*"],
     "background": {
       "service_worker": "background.js"
     },

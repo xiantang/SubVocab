@@ -65,6 +65,51 @@
     .delete-btn:hover {
       background-color: #cc0000;
     }
+    .settings-section {
+      margin-bottom: 20px;
+      padding: 12px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border: 1px solid #e9ecef;
+    }
+    .settings-section h3 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: #495057;
+    }
+    .setting-item {
+      margin-bottom: 8px;
+    }
+    .setting-item label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      color: #6c757d;
+    }
+    .api-key-container {
+      display: flex;
+      gap: 8px;
+    }
+    .api-key-container input {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid #ced4da;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .save-btn {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background-color 0.2s;
+    }
+    .save-btn:hover {
+      background-color: #218838;
+    }
   </style>
 </head>
 <body>
@@ -72,6 +117,18 @@
     <h1>生词本</h1>
     <button id="exportBtn" class="export-btn">导出到剪切板</button>
   </div>
+  
+  <div class="settings-section">
+    <h3>设置</h3>
+    <div class="setting-item">
+      <label for="apiKey">OpenAI API Key:</label>
+      <div class="api-key-container">
+        <input type="password" id="apiKey" placeholder="请输入OpenAI API Key" />
+        <button id="saveApiKey" class="save-btn">保存</button>
+      </div>
+    </div>
+  </div>
+  
   <div id="wordList"></div>
   <script src="popup.js"></script>
 </body>

@@ -1,5 +1,10 @@
 document.addEventListener('DOMContentLoaded', function() {
     const wordListDiv = document.getElementById('wordList');
+    
+    // 加载保存的API Key
+    chrome.storage.local.get({ openaiApiKey: '' }, function(result) {
+      document.getElementById('apiKey').value = result.openaiApiKey;
+    });
   
     chrome.storage.local.get({ wordList: [] }, function(result) {
       const wordList = result.wordList;
@@ -63,6 +68,25 @@ document.addEventListener('DOMContentLoaded', function() {
           alert('复制失败，请手动复制');
         });
       });
+    });
+
+    // 保存API Key功能
+    document.getElementById('saveApiKey').addEventListener('click', function() {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      if (apiKey) {
+        chrome.storage.local.set({ openaiApiKey: apiKey }, function() {
+          const btn = document.getElementById('saveApiKey');
+          const originalText = btn.textContent;
+          btn.textContent = '已保存';
+          btn.style.backgroundColor = '#28a745';
+          setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.backgroundColor = '#28a745';
+          }, 2000);
+        });
+      } else {
+        alert('请输入有效的API Key');
+      }
     });
   
     function getColor(familiarity) {
