@@ -44,13 +44,8 @@ document.addEventListener('DOMContentLoaded', function() {
           return;
         }
 
-        // 格式化导出内容
-        let exportText = '生词本导出\n\n';
-        wordList.forEach((wordObj, index) => {
-          const familiarityText = '★'.repeat(wordObj.familiarity) || '未标记';
-          exportText += `${index + 1}. ${wordObj.word} (熟悉度: ${familiarityText})\n`;
-        });
-        exportText += `\n总计: ${wordList.length} 个单词`;
+        // 格式化导出内容 - 只复制单词
+        const exportText = wordList.map(wordObj => wordObj.word).join('\n');
 
         // 复制到剪切板
         navigator.clipboard.writeText(exportText).then(function() {
