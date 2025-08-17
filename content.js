@@ -145,6 +145,12 @@ function translateWord(word, x, y) {
 }
 
 function showTooltip(word, translation, x, y) {
+  // 移除已存在的翻译框
+  const existingTooltip = document.querySelector('.translation-tooltip');
+  if (existingTooltip) {
+    document.body.removeChild(existingTooltip);
+  }
+
   const tooltip = document.createElement('div');
   tooltip.className = 'translation-tooltip';
   tooltip.style.position = 'absolute';
@@ -152,26 +158,59 @@ function showTooltip(word, translation, x, y) {
   tooltip.style.top = `${y}px`;
   tooltip.style.backgroundColor = 'white';
   tooltip.style.border = '1px solid black';
-  tooltip.style.padding = '5px';
+  tooltip.style.padding = '10px';
   tooltip.style.zIndex = 1000;
+  tooltip.style.borderRadius = '5px';
+  tooltip.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+  
+  const uniqueId = Date.now();
   tooltip.innerHTML = `
-    <div>${word}: ${translation}</div>
-    <button id="addToWordList">加入生词本</button>
+    <div style="margin-bottom: 8px;">
+      <strong>${word}</strong>: ${translation}
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button id="addBtn_${uniqueId}" style="background-color: #4CAF50; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">加入生词本</button>
+      <button id="cancelAddBtn_${uniqueId}" style="background-color: #888; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">取消</button>
+    </div>
   `;
 
   document.body.appendChild(tooltip);
 
-  document.getElementById('addToWordList').addEventListener('click', function() {
+  document.getElementById(`addBtn_${uniqueId}`).addEventListener('click', function() {
     chrome.runtime.sendMessage({ action: 'addToWordList', word: word }, (response) => {
       console.log('添加单词到生词本:', response);
-        highlightWord(word);
+      highlightWord(word);
+      if (document.body.contains(tooltip)) {
         document.body.removeChild(tooltip);
+      }
     });
   });
 
+  document.getElementById(`cancelAddBtn_${uniqueId}`).addEventListener('click', function() {
+    if (document.body.contains(tooltip)) {
+      document.body.removeChild(tooltip);
+    }
+  });
+
+  // 点击其他地方关闭tooltip
+  const closeHandler = function(event) {
+    if (!tooltip.contains(event.target)) {
+      if (document.body.contains(tooltip)) {
+        document.body.removeChild(tooltip);
+      }
+      document.removeEventListener('click', closeHandler);
+    }
+  };
+  
+  setTimeout(() => {
+    document.addEventListener('click', closeHandler);
+  }, 100);
+
+  // 5秒后自动关闭
   setTimeout(() => {
     if (document.body.contains(tooltip)) {
       document.body.removeChild(tooltip);
+      document.removeEventListener('click', closeHandler);
     }
   }, 5000);
 }
