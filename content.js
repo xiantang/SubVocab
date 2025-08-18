@@ -1,4 +1,4 @@
-// 启用字幕文本选择
+// Enable caption text selection with modifier key dragging support
 function enableCaptionTextSelection() {
   const style = document.createElement('style');
   style.textContent = `
@@ -14,11 +14,18 @@ function enableCaptionTextSelection() {
       user-select: text !important;
       -webkit-user-select: text !important;
     }
-    /* 完全禁用字幕容器的拖拽 */
-    .ytp-caption-window-container,
-    .ytp-caption-window-container *,
-    .ytp-caption-segment,
-    .ytp-caption-segment * {
+    /* Dynamic cursor based on modifier keys */
+    .ytp-caption-segment.drag-mode {
+      cursor: move !important;
+    }
+    .ytp-caption-segment.drag-mode * {
+      cursor: move !important;
+    }
+    /* Disable caption container dragging by default, but allow when in drag mode */
+    .ytp-caption-window-container:not(.allow-drag),
+    .ytp-caption-window-container:not(.allow-drag) *,
+    .ytp-caption-segment:not(.allow-drag),
+    .ytp-caption-segment:not(.allow-drag) * {
       -webkit-user-drag: none !important;
       -khtml-user-drag: none !important;
       -moz-user-drag: none !important;
@@ -27,46 +34,101 @@ function enableCaptionTextSelection() {
       drag: none !important;
       -webkit-touch-callout: none !important;
     }
+    /* Enable dragging when in drag mode */
+    .ytp-caption-window-container.allow-drag,
+    .ytp-caption-window-container.allow-drag *,
+    .ytp-caption-segment.allow-drag,
+    .ytp-caption-segment.allow-drag * {
+      -webkit-user-drag: auto !important;
+      -khtml-user-drag: auto !important;
+      -moz-user-drag: auto !important;
+      -o-user-drag: auto !important;
+      user-drag: auto !important;
+      drag: auto !important;
+    }
   `;
   document.head.appendChild(style);
   
-  // 处理字幕容器
+  // Handle caption container with modifier key support
   const captionContainer = document.querySelector('.ytp-caption-window-container');
   if (captionContainer) {
-    // 设置容器和所有子元素的draggable为false
+    // Set container and all child elements as non-draggable by default
     const setNotDraggable = (element) => {
       element.draggable = false;
       element.setAttribute('draggable', 'false');
-      // 递归处理所有子元素
+      // Recursively handle all child elements
       Array.from(element.children).forEach(child => setNotDraggable(child));
     };
     
     setNotDraggable(captionContainer);
     
-    // 更精确的鼠标事件处理 - 拦截所有可能的拖拽行为
+    // Precise mouse event handling with modifier key detection
     let isMouseDownOnCaption = false;
+    let isDragMode = false;
     let startX = 0;
     let startY = 0;
     let lastMoveX = 0;
     let lastMoveY = 0;
     
-    // 完全拦截mousedown事件
-    captionContainer.addEventListener('mousedown', function(e) {
+    // Function to check if modifier keys are pressed
+    const hasModifierKey = (e) => {
+      return e.altKey || e.ctrlKey || e.metaKey;
+    };
+    
+    // Update cursor and drag state based on modifier keys
+    const updateCursor = (e) => {
+      const captionSegments = document.querySelectorAll('.ytp-caption-segment');
+      const hasModifier = hasModifierKey(e);
+      
+      captionSegments.forEach(segment => {
+        if (hasModifier) {
+          segment.classList.add('drag-mode');
+          segment.classList.add('allow-drag');
+          segment.draggable = true;
+          segment.setAttribute('draggable', 'true');
+        } else {
+          segment.classList.remove('drag-mode');
+          segment.classList.remove('allow-drag');
+          segment.draggable = false;
+          segment.setAttribute('draggable', 'false');
+        }
+      });
+      
+      // Also update the container
+      if (hasModifier) {
+        captionContainer.classList.add('allow-drag');
+        captionContainer.draggable = true;
+        captionContainer.setAttribute('draggable', 'true');
+      } else {
+        captionContainer.classList.remove('allow-drag');
+        captionContainer.draggable = false;
+        captionContainer.setAttribute('draggable', 'false');
+      }
+    };
+    
+    // Listen for keydown/keyup to update cursor
+    document.addEventListener('keydown', updateCursor);
+    document.addEventListener('keyup', updateCursor);
+    
+    // Create separate event handlers for each mode
+    let textSelectionListeners = null;
+    let currentMode = 'text'; // 'text' or 'drag'
+    
+    // Text selection mousedown handler
+    const textSelectionMouseDown = function(e) {
       if (e.target.closest('.ytp-caption-segment')) {
+        console.log('TEXT SELECTION MODE: Handling mousedown');
+        
         isMouseDownOnCaption = true;
         startX = e.clientX;
         startY = e.clientY;
-        lastMoveX = e.clientX;
-        lastMoveY = e.clientY;
         
-        console.log('Mouse down on caption at:', startX, startY);
-        
-        // 完全阻止默认行为和事件传播
+        // Block all default drag behavior
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
         
-        // 手动处理文本选择的开始
+        // Start text selection
         const range = document.caretRangeFromPoint(e.clientX, e.clientY);
         if (range) {
           const selection = window.getSelection();
@@ -77,19 +139,73 @@ function enableCaptionTextSelection() {
         
         return false;
       }
-    }, { capture: true });
+    };
     
-    // 完全劫持mousemove事件并手动实现文本选择
+    // Function to switch between modes
+    const switchToMode = (newMode) => {
+      if (currentMode === newMode) return;
+      
+      console.log('Switching from', currentMode, 'to', newMode);
+      
+      if (newMode === 'drag') {
+        // Remove text selection event listeners
+        captionContainer.removeEventListener('mousedown', textSelectionMouseDown, true);
+        
+        // Enable drag CSS and attributes
+        const captionSegments = document.querySelectorAll('.ytp-caption-segment');
+        captionSegments.forEach(segment => {
+          segment.classList.add('allow-drag');
+          segment.draggable = true;
+          segment.setAttribute('draggable', 'true');
+        });
+        captionContainer.classList.add('allow-drag');
+        captionContainer.draggable = true;
+        captionContainer.setAttribute('draggable', 'true');
+        
+      } else { // text mode
+        // Add text selection event listener
+        captionContainer.addEventListener('mousedown', textSelectionMouseDown, true);
+        
+        // Disable drag CSS and attributes
+        const captionSegments = document.querySelectorAll('.ytp-caption-segment');
+        captionSegments.forEach(segment => {
+          segment.classList.remove('allow-drag');
+          segment.draggable = false;
+          segment.setAttribute('draggable', 'false');
+        });
+        captionContainer.classList.remove('allow-drag');
+        captionContainer.draggable = false;
+        captionContainer.setAttribute('draggable', 'false');
+      }
+      
+      currentMode = newMode;
+    };
+    
+    // Monitor keyboard state and switch modes
+    const keyboardHandler = (e) => {
+      const shouldBeDragMode = hasModifierKey(e);
+      switchToMode(shouldBeDragMode ? 'drag' : 'text');
+    };
+    
+    document.addEventListener('keydown', keyboardHandler);
+    document.addEventListener('keyup', keyboardHandler);
+    
+    // Initialize in text selection mode
+    switchToMode('text');
+    
+    // Handle mousemove - only intercept in text selection mode
     document.addEventListener('mousemove', function(e) {
-      if (isMouseDownOnCaption) {
+      // Only handle if we're in text selection mode and mouse is down
+      if (isMouseDownOnCaption && currentMode === 'text') {
+        // Text selection mode - manually implement text selection
         console.log('Manual text selection handling');
         
-        // 完全阻止所有默认行为和事件传播
+        // Completely prevent all default behavior and event propagation
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
         
-        // 手动实现文本选择
+        // Manually implement text selection
         try {
           const startRange = document.caretRangeFromPoint(startX, startY);
           const endRange = document.caretRangeFromPoint(e.clientX, e.clientY);
@@ -98,17 +214,17 @@ function enableCaptionTextSelection() {
             const selection = window.getSelection();
             selection.removeAllRanges();
             
-            // 创建选择范围
+            // Create selection range
             const range = document.createRange();
             
-            // 确定选择的方向
+            // Determine selection direction
             const compareResult = startRange.compareBoundaryPoints(Range.START_TO_START, endRange);
             if (compareResult <= 0) {
-              // 从左到右选择
+              // Left to right selection
               range.setStart(startRange.startContainer, startRange.startOffset);
               range.setEnd(endRange.startContainer, endRange.startOffset);
             } else {
-              // 从右到左选择
+              // Right to left selection
               range.setStart(endRange.startContainer, endRange.startOffset);
               range.setEnd(startRange.startContainer, startRange.startOffset);
             }
@@ -124,14 +240,15 @@ function enableCaptionTextSelection() {
         lastMoveY = e.clientY;
         return false;
       }
+      // If not in text selection mode, don't interfere at all
     }, { capture: true, passive: false });
     
-    // 拦截mouseup事件
+    // Handle mouseup event - only intercept in text selection mode
     document.addEventListener('mouseup', function(e) {
-      if (isMouseDownOnCaption) {
-        console.log('Mouse up, resetting state');
+      if (isMouseDownOnCaption && currentMode === 'text') {
+        console.log('Mouse up in text selection mode, resetting state');
         
-        // 完全阻止mouseup事件的默认行为
+        // Only prevent default behavior in text selection mode
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -139,30 +256,43 @@ function enableCaptionTextSelection() {
         isMouseDownOnCaption = false;
         return false;
       }
+      
+      // Reset state regardless
+      isMouseDownOnCaption = false;
     }, { capture: true });
     
-    // 阻止所有拖拽事件
-    const preventAllDrag = function(e) {
-      if (e.target.closest('.ytp-caption-window-container')) {
-        console.log('Preventing drag event:', e.type);
+    // Simple drag event prevention - only block in text selection mode
+    const preventDragInTextMode = function(e) {
+      if (e.target.closest('.ytp-caption-window-container') && currentMode === 'text') {
+        console.log('TEXT SELECTION MODE: Preventing drag event:', e.type);
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
         return false;
       }
+      // In drag mode, don't interfere at all
     };
     
     const dragEvents = ['dragstart', 'drag', 'dragend', 'dragover', 'dragenter', 'dragleave', 'drop'];
     dragEvents.forEach(eventType => {
-      document.addEventListener(eventType, preventAllDrag, { capture: true, passive: false });
+      document.addEventListener(eventType, preventDragInTextMode, { capture: true, passive: false });
     });
     
-    // 使用MutationObserver确保新添加的元素也不可拖拽
+    // Use MutationObserver to handle newly added elements based on current mode
     const dragObserver = new MutationObserver(mutations => {
       mutations.forEach(mutation => {
         mutation.addedNodes.forEach(node => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            setNotDraggable(node);
+          if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('ytp-caption-segment')) {
+            // Apply current mode settings to new elements
+            if (currentMode === 'drag') {
+              node.classList.add('allow-drag');
+              node.draggable = true;
+              node.setAttribute('draggable', 'true');
+            } else {
+              node.classList.remove('allow-drag');
+              node.draggable = false;
+              node.setAttribute('draggable', 'false');
+            }
           }
         });
       });
@@ -172,7 +302,7 @@ function enableCaptionTextSelection() {
   }
 }
 
-// 页面加载后启用文本选择和拖拽阻止
+// Enable text selection and drag prevention after page load
 setTimeout(() => {
   enableCaptionTextSelection();
   addDragPreventionToNewCaptions();
@@ -181,20 +311,20 @@ setTimeout(() => {
 document.addEventListener('dblclick', function(event) {
   const target = event.target;
   
-  // 检查是否直接点击在高亮的span上
+  // Check if directly clicked on highlighted span
   if (target && target.tagName === 'SPAN' && target.dataset.word) {
     const word = target.dataset.word;
-    console.log('点击已高亮单词:', word);
+    console.log('Clicked highlighted word:', word);
     showRemoveConfirmation(word, event.clientX, event.clientY);
     return;
   }
   
-  // 检查是否点击在字幕区域
+  // Check if clicked in caption area
   if (target && target.classList.contains('ytp-caption-segment')) {
-    // 检查是否有文本被选中，如果有则不执行双击功能
+    // Check if text is selected, if so don't execute double-click function
     const selection = window.getSelection();
     if (selection && selection.toString().trim().length > 0) {
-      return; // 有文本被选中，不执行双击功能
+      return; // Text is selected, don't execute double-click function
     }
     const range = document.caretRangeFromPoint(event.clientX, event.clientY);
     const offset = range.startOffset;

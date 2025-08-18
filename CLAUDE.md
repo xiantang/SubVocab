@@ -15,3 +15,6 @@ This file contains project-specific information for Claude Code.
 ## Common Commands
 <!-- Add frequently used commands for this project -->
 
+
+- git commit message must be in English and follow Conventional Commits 1.0.0 style
+- and comments of code must be English
