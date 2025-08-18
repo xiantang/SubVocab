@@ -1,3 +1,183 @@
+// 启用字幕文本选择
+function enableCaptionTextSelection() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .ytp-caption-segment {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      -moz-user-select: text !important;
+      -ms-user-select: text !important;
+      cursor: text !important;
+    }
+    .highlighted-word {
+      cursor: text !important;
+      user-select: text !important;
+      -webkit-user-select: text !important;
+    }
+    /* 完全禁用字幕容器的拖拽 */
+    .ytp-caption-window-container,
+    .ytp-caption-window-container *,
+    .ytp-caption-segment,
+    .ytp-caption-segment * {
+      -webkit-user-drag: none !important;
+      -khtml-user-drag: none !important;
+      -moz-user-drag: none !important;
+      -o-user-drag: none !important;
+      user-drag: none !important;
+      drag: none !important;
+      -webkit-touch-callout: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+  
+  // 处理字幕容器
+  const captionContainer = document.querySelector('.ytp-caption-window-container');
+  if (captionContainer) {
+    // 设置容器和所有子元素的draggable为false
+    const setNotDraggable = (element) => {
+      element.draggable = false;
+      element.setAttribute('draggable', 'false');
+      // 递归处理所有子元素
+      Array.from(element.children).forEach(child => setNotDraggable(child));
+    };
+    
+    setNotDraggable(captionContainer);
+    
+    // 更精确的鼠标事件处理 - 拦截所有可能的拖拽行为
+    let isMouseDownOnCaption = false;
+    let startX = 0;
+    let startY = 0;
+    let lastMoveX = 0;
+    let lastMoveY = 0;
+    
+    // 完全拦截mousedown事件
+    captionContainer.addEventListener('mousedown', function(e) {
+      if (e.target.closest('.ytp-caption-segment')) {
+        isMouseDownOnCaption = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        lastMoveX = e.clientX;
+        lastMoveY = e.clientY;
+        
+        console.log('Mouse down on caption at:', startX, startY);
+        
+        // 完全阻止默认行为和事件传播
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        // 手动处理文本选择的开始
+        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (range) {
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          selection.collapseToStart();
+        }
+        
+        return false;
+      }
+    }, { capture: true });
+    
+    // 完全劫持mousemove事件并手动实现文本选择
+    document.addEventListener('mousemove', function(e) {
+      if (isMouseDownOnCaption) {
+        console.log('Manual text selection handling');
+        
+        // 完全阻止所有默认行为和事件传播
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        // 手动实现文本选择
+        try {
+          const startRange = document.caretRangeFromPoint(startX, startY);
+          const endRange = document.caretRangeFromPoint(e.clientX, e.clientY);
+          
+          if (startRange && endRange) {
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            
+            // 创建选择范围
+            const range = document.createRange();
+            
+            // 确定选择的方向
+            const compareResult = startRange.compareBoundaryPoints(Range.START_TO_START, endRange);
+            if (compareResult <= 0) {
+              // 从左到右选择
+              range.setStart(startRange.startContainer, startRange.startOffset);
+              range.setEnd(endRange.startContainer, endRange.startOffset);
+            } else {
+              // 从右到左选择
+              range.setStart(endRange.startContainer, endRange.startOffset);
+              range.setEnd(startRange.startContainer, startRange.startOffset);
+            }
+            
+            selection.addRange(range);
+            console.log('Manual selection:', selection.toString());
+          }
+        } catch (error) {
+          console.log('Error in manual selection:', error);
+        }
+        
+        lastMoveX = e.clientX;
+        lastMoveY = e.clientY;
+        return false;
+      }
+    }, { capture: true, passive: false });
+    
+    // 拦截mouseup事件
+    document.addEventListener('mouseup', function(e) {
+      if (isMouseDownOnCaption) {
+        console.log('Mouse up, resetting state');
+        
+        // 完全阻止mouseup事件的默认行为
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        isMouseDownOnCaption = false;
+        return false;
+      }
+    }, { capture: true });
+    
+    // 阻止所有拖拽事件
+    const preventAllDrag = function(e) {
+      if (e.target.closest('.ytp-caption-window-container')) {
+        console.log('Preventing drag event:', e.type);
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+      }
+    };
+    
+    const dragEvents = ['dragstart', 'drag', 'dragend', 'dragover', 'dragenter', 'dragleave', 'drop'];
+    dragEvents.forEach(eventType => {
+      document.addEventListener(eventType, preventAllDrag, { capture: true, passive: false });
+    });
+    
+    // 使用MutationObserver确保新添加的元素也不可拖拽
+    const dragObserver = new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        mutation.addedNodes.forEach(node => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            setNotDraggable(node);
+          }
+        });
+      });
+    });
+    
+    dragObserver.observe(captionContainer, { childList: true, subtree: true });
+  }
+}
+
+// 页面加载后启用文本选择和拖拽阻止
+setTimeout(() => {
+  enableCaptionTextSelection();
+  addDragPreventionToNewCaptions();
+}, 1000);
+
 document.addEventListener('dblclick', function(event) {
   const target = event.target;
   
@@ -11,6 +191,11 @@ document.addEventListener('dblclick', function(event) {
   
   // 检查是否点击在字幕区域
   if (target && target.classList.contains('ytp-caption-segment')) {
+    // 检查是否有文本被选中，如果有则不执行双击功能
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim().length > 0) {
+      return; // 有文本被选中，不执行双击功能
+    }
     const range = document.caretRangeFromPoint(event.clientX, event.clientY);
     const offset = range.startOffset;
     const textNode = range.startContainer;
@@ -366,16 +551,38 @@ let lastUrl = location.href;
 const urlObserver = new MutationObserver(() => {
   if (location.href !== lastUrl) {
     lastUrl = location.href;
-    setTimeout(initializeHighlights, 2000); // 等待新页面加载
+    setTimeout(() => {
+      enableCaptionTextSelection(); // 重新启用文本选择
+      addDragPreventionToNewCaptions(); // 为新页面字幕添加拖拽阻止
+      initializeHighlights();
+    }, 2000); // 等待新页面加载
   }
 });
 urlObserver.observe(document, { subtree: true, childList: true });
+
+// 为新字幕元素添加拖拽阻止
+function addDragPreventionToNewCaptions() {
+  // 简化版本 - 主要逻辑已在enableCaptionTextSelection中处理
+  const captionElements = document.querySelectorAll('.ytp-caption-segment');
+  captionElements.forEach(element => {
+    element.draggable = false;
+    element.setAttribute('draggable', 'false');
+  });
+}
 
 // 监听 YouTube 字幕变化
 function observeCaptions() {
   const captionsContainer = document.querySelector('.ytp-caption-window-container');
   if (captionsContainer) {
     const observer = new MutationObserver(() => {
+      // 重新启用文本选择（防止YouTube更新后被覆盖）
+      enableCaptionTextSelection();
+      
+      // 为新出现的字幕元素添加拖拽阻止
+      setTimeout(() => {
+        addDragPreventionToNewCaptions();
+      }, 50);
+      
       chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
         if (response && response.wordList) {
           response.wordList.forEach(item => highlightWord(item.word));
@@ -431,7 +638,7 @@ function highlightWord(word) {
         if (nodeText.includes(word)) {
           const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
           if (regex.test(nodeText)) {
-            const newHTML = nodeText.replace(regex, `<span style="background-color: #FFD700; cursor: pointer;" data-word="${word}" class="highlighted-word">${word}</span>`);
+            const newHTML = nodeText.replace(regex, `<span style="background-color: #FFD700; user-select: text; -webkit-user-select: text;" data-word="${word}" class="highlighted-word">${word}</span>`);
             const newElement = document.createElement('span');
             newElement.innerHTML = newHTML;
             textNode.parentNode.insertBefore(newElement, textNode);
