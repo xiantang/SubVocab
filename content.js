@@ -878,6 +878,12 @@ function hideHoverTooltip() {
   }
 }
 
+// Phrase translation state management
+let translationTimer = null;
+let currentSelection = null;
+let translationPopup = null;
+let selectionBounds = null;
+
 // YouTube视频暂停/恢复功能
 let wasPlayingBeforeHover = false;
 let hoverPauseTimeout = null;
@@ -922,3 +928,286 @@ function setupCaptionHoverPause() {
 
 // 启动字幕悬停暂停功能
 setupCaptionHoverPause();
+
+// Phrase translation functionality
+function setupPhraseTranslation() {
+  // Listen for text selection changes
+  document.addEventListener('selectionchange', handleSelectionChange);
+  
+  // Listen for mouse movement to detect leaving selection area
+  document.addEventListener('mousemove', handleMouseMove);
+  
+  // Listen for ESC key to cancel translation
+  document.addEventListener('keydown', handleEscapeKey);
+}
+
+function handleSelectionChange() {
+  const selection = window.getSelection();
+  
+  // Clear previous timer and popup
+  clearTranslationTimer();
+  hideTranslationPopup();
+  
+  if (selection.rangeCount > 0 && !selection.isCollapsed) {
+    const selectedText = selection.toString().trim();
+    const range = selection.getRangeAt(0);
+    
+    // Check if selection is within caption area
+    if (!isSelectionInCaptions(range)) {
+      return;
+    }
+    
+    // Check if selection is valid (more than 1 character, contains spaces for phrases)
+    if (selectedText.length > 1 && selectedText.includes(' ')) {
+      console.log('Phrase selected:', selectedText);
+      
+      // Store current selection info
+      currentSelection = {
+        text: selectedText,
+        range: range.cloneRange(),
+        rect: range.getBoundingClientRect()
+      };
+      
+      // Calculate selection bounds for mouse tracking
+      selectionBounds = calculateSelectionBounds(range);
+      
+      // Start timer for delayed translation
+      translationTimer = setTimeout(() => {
+        translateSelectedPhrase(selectedText, currentSelection.rect);
+      }, 1500); // 1.5 second delay
+    }
+  } else {
+    // Clear state when no selection
+    currentSelection = null;
+    selectionBounds = null;
+  }
+}
+
+function isSelectionInCaptions(range) {
+  const container = range.commonAncestorContainer;
+  const element = container.nodeType === Node.TEXT_NODE ? container.parentElement : container;
+  return element.closest('.ytp-caption-segment') !== null;
+}
+
+function calculateSelectionBounds(range) {
+  const rect = range.getBoundingClientRect();
+  const margin = 20; // 20px margin around selection
+  
+  return {
+    left: rect.left - margin,
+    right: rect.right + margin,
+    top: rect.top - margin,
+    bottom: rect.bottom + margin
+  };
+}
+
+function handleMouseMove(e) {
+  if (selectionBounds && translationTimer) {
+    const mouseX = e.clientX;
+    const mouseY = e.clientY;
+    
+    // Check if mouse is outside selection bounds
+    if (mouseX < selectionBounds.left || 
+        mouseX > selectionBounds.right || 
+        mouseY < selectionBounds.top || 
+        mouseY > selectionBounds.bottom) {
+      
+      console.log('Mouse left selection area, cancelling translation');
+      clearTranslationTimer();
+      currentSelection = null;
+      selectionBounds = null;
+    }
+  }
+}
+
+function handleEscapeKey(e) {
+  if (e.key === 'Escape') {
+    console.log('ESC pressed, cancelling translation');
+    clearTranslationTimer();
+    hideTranslationPopup();
+    
+    // Also clear selection
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    
+    currentSelection = null;
+    selectionBounds = null;
+  }
+}
+
+function clearTranslationTimer() {
+  if (translationTimer) {
+    clearTimeout(translationTimer);
+    translationTimer = null;
+    console.log('Translation timer cleared');
+  }
+}
+
+function hideTranslationPopup() {
+  if (translationPopup && document.body.contains(translationPopup)) {
+    document.body.removeChild(translationPopup);
+    translationPopup = null;
+  }
+}
+
+function translateSelectedPhrase(phrase, rect) {
+  console.log('Translating phrase:', phrase);
+  
+  // Get sentence context for better translation
+  const fullContext = getFullCaptionContext();
+  
+  // Use existing translation function with context
+  chrome.storage.local.get({ openaiApiKey: '' }, function(result) {
+    if (result.openaiApiKey) {
+      // Use OpenAI translation for phrases
+      translatePhraseWithOpenAI(phrase, fullContext, rect.left + rect.width/2, rect.bottom + 10);
+    } else {
+      // Fallback to basic translation
+      translatePhraseBasic(phrase, rect.left + rect.width/2, rect.bottom + 10);
+    }
+  });
+}
+
+function getFullCaptionContext() {
+  const captionSegments = document.querySelectorAll('.ytp-caption-segment');
+  let context = '';
+  
+  captionSegments.forEach(segment => {
+    const text = segment.innerText.trim();
+    if (text) {
+      context += text + ' ';
+    }
+  });
+  
+  return context.trim();
+}
+
+async function translatePhraseWithOpenAI(phrase, context, x, y) {
+  chrome.storage.local.get({ openaiApiKey: '' }, async function(result) {
+    const apiKey = result.openaiApiKey;
+    
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: '你是一个专业的英语翻译助手。请根据给定的句子语境，为指定的英文短语或句子提供最准确的中文翻译。只需要返回翻译结果，不需要其他解释。'
+            },
+            {
+              role: 'user',
+              content: `请翻译以下英文短语或句子："${phrase}"。\n\n语境：${context}\n\n只返回中文翻译，不要其他内容。`
+            }
+          ],
+          max_tokens: 150,
+          temperature: 0.3
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const translation = data.choices[0].message.content.trim();
+        console.log("OpenAI phrase translation:", translation);
+        showPhraseTranslationPopup(phrase, translation, x, y);
+      } else {
+        console.error('OpenAI API请求失败:', response.status);
+        translatePhraseBasic(phrase, x, y);
+      }
+    } catch (error) {
+      console.error('OpenAI翻译失败:', error);
+      translatePhraseBasic(phrase, x, y);
+    }
+  });
+}
+
+function translatePhraseBasic(phrase, x, y) {
+  const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(phrase)}&langpair=en|zh-CN`;
+
+  fetch(apiUrl)
+    .then(response => response.json())
+    .then(data => {
+      if (data.responseData && data.responseData.translatedText) {
+        const translation = data.responseData.translatedText;
+        showPhraseTranslationPopup(phrase, translation, x, y);
+      } else {
+        console.error('Translation failed');
+      }
+    })
+    .catch(error => {
+      console.error('翻译失败:', error);
+    });
+}
+
+function showPhraseTranslationPopup(phrase, translation, x, y) {
+  // Remove any existing popup
+  hideTranslationPopup();
+  
+  const popup = document.createElement('div');
+  popup.className = 'phrase-translation-popup';
+  translationPopup = popup;
+  
+  // Position the popup
+  popup.style.position = 'fixed';
+  popup.style.left = `${Math.min(x, window.innerWidth - 300)}px`;
+  popup.style.top = `${Math.min(y, window.innerHeight - 150)}px`;
+  popup.style.backgroundColor = 'white';
+  popup.style.border = '2px solid #4CAF50';
+  popup.style.borderRadius = '8px';
+  popup.style.padding = '15px';
+  popup.style.zIndex = '10000';
+  popup.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+  popup.style.maxWidth = '300px';
+  popup.style.fontSize = '14px';
+  popup.style.fontFamily = 'Arial, sans-serif';
+  
+  const uniqueId = Date.now();
+  popup.innerHTML = `
+    <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+      <div style="font-weight: bold; color: #333; margin-bottom: 4px;">选中的短语：</div>
+      <div style="font-style: italic; color: #666;">"${phrase}"</div>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <div style="font-weight: bold; color: #333; margin-bottom: 4px;">翻译：</div>
+      <div style="color: #2c3e50;">${translation}</div>
+    </div>
+    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <button id="closeBtn_${uniqueId}" style="background-color: #95a5a6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">关闭</button>
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Add close button functionality
+  document.getElementById(`closeBtn_${uniqueId}`).addEventListener('click', function() {
+    hideTranslationPopup();
+  });
+
+  // Auto-close after 8 seconds
+  setTimeout(() => {
+    hideTranslationPopup();
+  }, 8000);
+
+  // Close when clicking outside
+  const outsideClickHandler = function(event) {
+    if (!popup.contains(event.target)) {
+      hideTranslationPopup();
+      document.removeEventListener('click', outsideClickHandler);
+    }
+  };
+  
+  setTimeout(() => {
+    document.addEventListener('click', outsideClickHandler);
+  }, 100);
+}
+
+// Initialize phrase translation functionality
+setTimeout(() => {
+  setupPhraseTranslation();
+  console.log('Phrase translation functionality initialized');
+}, 1000);
