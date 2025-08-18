@@ -651,12 +651,16 @@ function removeHighlight(word) {
   }
 }
 
-// 在文档加载完成后检查并高亮已添加的单词
+// 在文档加载完成后检查并高亮已添加的单词和词组
 function initializeHighlights() {
   chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
     if (response && response.wordList) {
       response.wordList.forEach(item => {
-        highlightWord(item.word);
+        if ((item.type || 'word') === 'word') {
+          highlightWord(item.word);
+        } else if (item.type === 'phrase') {
+          highlightPhrase(item.word);
+        }
       });
       
       // 为所有已高亮的单词添加hover事件
@@ -666,6 +670,16 @@ function initializeHighlights() {
           const word = span.dataset.word;
           if (word) {
             addHoverTranslation(span, word);
+          }
+        });
+        
+        // 为所有已高亮的词组添加hover事件
+        const highlightedPhrases = document.querySelectorAll('.highlighted-phrase');
+        highlightedPhrases.forEach(span => {
+          const phrase = span.dataset.phrase;
+          if (phrase && !span.hasAttribute('data-phrase-hover-added')) {
+            addHoverTranslationPhrase(span, phrase);
+            span.setAttribute('data-phrase-hover-added', 'true');
           }
         });
       }, 100);
@@ -715,9 +729,15 @@ function observeCaptions() {
       
       chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
         if (response && response.wordList) {
-          response.wordList.forEach(item => highlightWord(item.word));
+          response.wordList.forEach(item => {
+            if ((item.type || 'word') === 'word') {
+              highlightWord(item.word);
+            } else if (item.type === 'phrase') {
+              highlightPhrase(item.word);
+            }
+          });
           
-          // 为新高亮的单词添加hover事件
+          // 为新高亮的单词和词组添加hover事件
           setTimeout(() => {
             const highlightedWords = document.querySelectorAll('.highlighted-word');
             highlightedWords.forEach(span => {
@@ -725,6 +745,15 @@ function observeCaptions() {
               if (word && !span.hasAttribute('data-hover-added')) {
                 addHoverTranslation(span, word);
                 span.setAttribute('data-hover-added', 'true');
+              }
+            });
+            
+            const highlightedPhrases = document.querySelectorAll('.highlighted-phrase');
+            highlightedPhrases.forEach(span => {
+              const phrase = span.dataset.phrase;
+              if (phrase && !span.hasAttribute('data-phrase-hover-added')) {
+                addHoverTranslationPhrase(span, phrase);
+                span.setAttribute('data-phrase-hover-added', 'true');
               }
             });
           }, 100);
@@ -1155,7 +1184,7 @@ function showPhraseTranslationPopup(phrase, translation, x, y) {
   // Position the popup
   popup.style.position = 'fixed';
   popup.style.left = `${Math.min(x, window.innerWidth - 300)}px`;
-  popup.style.top = `${Math.min(y, window.innerHeight - 150)}px`;
+  popup.style.top = `${Math.min(y, window.innerHeight - 180)}px`;
   popup.style.backgroundColor = 'white';
   popup.style.border = '2px solid #4CAF50';
   popup.style.borderRadius = '8px';
@@ -1167,35 +1196,60 @@ function showPhraseTranslationPopup(phrase, translation, x, y) {
   popup.style.fontFamily = 'Arial, sans-serif';
   
   const uniqueId = Date.now();
-  popup.innerHTML = `
-    <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
-      <div style="font-weight: bold; color: #333; margin-bottom: 4px;">选中的短语：</div>
-      <div style="font-style: italic; color: #666;">"${phrase}"</div>
-    </div>
-    <div style="margin-bottom: 12px;">
-      <div style="font-weight: bold; color: #333; margin-bottom: 4px;">翻译：</div>
-      <div style="color: #2c3e50;">${translation}</div>
-    </div>
-    <div style="display: flex; gap: 8px; justify-content: flex-end;">
-      <button id="closeBtn_${uniqueId}" style="background-color: #95a5a6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">关闭</button>
-    </div>
-  `;
+  
+  // Check if phrase already exists in word list
+  chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
+    const isInWordList = response && response.wordList ? 
+      response.wordList.some(item => item.word.toLowerCase() === phrase.toLowerCase() && item.type === 'phrase') : 
+      false;
+    
+    popup.innerHTML = `
+      <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+        <div style="font-weight: bold; color: #333; margin-bottom: 4px;">选中的短语：</div>
+        <div style="font-style: italic; color: #666;">"${phrase}"</div>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <div style="font-weight: bold; color: #333; margin-bottom: 4px;">翻译：</div>
+        <div style="color: #2c3e50;">${translation}</div>
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        ${isInWordList ? 
+          `<button id="removePhraseBtn_${uniqueId}" style="background-color: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">移除词组</button>` :
+          `<button id="addPhraseBtn_${uniqueId}" style="background-color: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">加入生词本</button>`
+        }
+        <button id="closeBtn_${uniqueId}" style="background-color: #95a5a6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">关闭</button>
+      </div>
+    `;
 
-  document.body.appendChild(popup);
+    document.body.appendChild(popup);
 
-  // Add close button functionality
-  document.getElementById(`closeBtn_${uniqueId}`).addEventListener('click', function() {
-    hideTranslationPopup();
+    // Add button functionality
+    if (isInWordList) {
+      document.getElementById(`removePhraseBtn_${uniqueId}`).addEventListener('click', function() {
+        removePhraseFromWordList(phrase);
+        hideTranslationPopup();
+      });
+    } else {
+      document.getElementById(`addPhraseBtn_${uniqueId}`).addEventListener('click', function() {
+        addPhraseToWordList(phrase, translation);
+        hideTranslationPopup();
+      });
+    }
+
+    // Add close button functionality
+    document.getElementById(`closeBtn_${uniqueId}`).addEventListener('click', function() {
+      hideTranslationPopup();
+    });
   });
 
-  // Auto-close after 8 seconds
+  // Auto-close after 10 seconds (extended for phrase actions)
   setTimeout(() => {
     hideTranslationPopup();
-  }, 8000);
+  }, 10000);
 
   // Close when clicking outside
   const outsideClickHandler = function(event) {
-    if (!popup.contains(event.target)) {
+    if (popup && !popup.contains(event.target)) {
       hideTranslationPopup();
       document.removeEventListener('click', outsideClickHandler);
     }
@@ -1204,6 +1258,139 @@ function showPhraseTranslationPopup(phrase, translation, x, y) {
   setTimeout(() => {
     document.addEventListener('click', outsideClickHandler);
   }, 100);
+}
+
+// Phrase management functions
+function addPhraseToWordList(phrase, translation) {
+  chrome.runtime.sendMessage({ 
+    action: 'addToWordList', 
+    word: phrase, 
+    translation: translation,
+    type: 'phrase'
+  }, (response) => {
+    if (response && response.success) {
+      console.log('Added phrase to word list:', phrase);
+      highlightPhrase(phrase);
+    } else {
+      console.log('Phrase already in word list or failed to add:', phrase);
+    }
+  });
+}
+
+function removePhraseFromWordList(phrase) {
+  chrome.runtime.sendMessage({ 
+    action: 'removeFromWordList', 
+    word: phrase,
+    type: 'phrase'
+  }, (response) => {
+    if (response && response.success) {
+      console.log('Removed phrase from word list:', phrase);
+      removeHighlightPhrase(phrase);
+    } else {
+      console.error('Failed to remove phrase:', phrase);
+    }
+  });
+}
+
+function highlightPhrase(phrase) {
+  const elements = document.getElementsByClassName('ytp-caption-segment');
+  for (let element of elements) {
+    // Check if phrase is already highlighted
+    const existingHighlight = element.querySelector(`span[data-phrase="${phrase}"]`);
+    if (existingHighlight) {
+      continue;
+    }
+    
+    const text = element.innerText;
+    if (text.includes(phrase)) {
+      // Create regex to match the exact phrase with word boundaries
+      const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedPhrase}\\b`, 'gi');
+      
+      if (regex.test(text)) {
+        const currentHTML = element.innerHTML;
+        const newHTML = currentHTML.replace(regex, 
+          `<span style="background-color: #87CEEB; user-select: text; -webkit-user-select: text; border-radius: 3px; padding: 1px 2px;" data-phrase="${phrase}" class="highlighted-phrase">${phrase}</span>`
+        );
+        element.innerHTML = newHTML;
+        
+        // Add hover translation for the highlighted phrase
+        const newHighlightedPhrases = element.querySelectorAll(`span[data-phrase="${phrase}"]`);
+        newHighlightedPhrases.forEach(span => {
+          addHoverTranslationPhrase(span, phrase);
+        });
+      }
+    }
+  }
+}
+
+function removeHighlightPhrase(phrase) {
+  const elements = document.getElementsByClassName('ytp-caption-segment');
+  for (let element of elements) {
+    const highlightedSpans = element.querySelectorAll(`span[data-phrase="${phrase}"]`);
+    highlightedSpans.forEach(span => {
+      const textNode = document.createTextNode(phrase);
+      span.parentNode.replaceChild(textNode, span);
+    });
+  }
+}
+
+function addHoverTranslationPhrase(span, phrase) {
+  // Avoid duplicate event listeners
+  if (span.hasAttribute('data-phrase-hover-added')) {
+    return;
+  }
+  span.setAttribute('data-phrase-hover-added', 'true');
+  
+  let hoverTimeout = null;
+
+  span.addEventListener('mouseenter', function(e) {
+    hoverTimeout = setTimeout(() => {
+      // Get phrase translation from word list
+      chrome.runtime.sendMessage({ action: 'getWordList' }, (response) => {
+        if (response && response.wordList) {
+          const phraseObj = response.wordList.find(item => 
+            item.word.toLowerCase() === phrase.toLowerCase() && item.type === 'phrase'
+          );
+          if (phraseObj && phraseObj.translation) {
+            showHoverTooltipUpdated(phraseObj.word, phraseObj.translation, e.clientX, e.clientY, true);
+          }
+        }
+      });
+    }, 500);
+  });
+
+  span.addEventListener('mouseleave', function() {
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      hoverTimeout = null;
+    }
+    hideHoverTooltip();
+  });
+}
+
+// Update showHoverTooltip to handle phrases
+function showHoverTooltipUpdated(word, translation, x, y, isPhrase = false) {
+  hideHoverTooltip();
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'hover-translation-tooltip';
+  tooltip.style.position = 'fixed';
+  tooltip.style.left = `${x + 10}px`;
+  tooltip.style.top = `${y - 30}px`;
+  tooltip.style.backgroundColor = isPhrase ? 'rgba(30, 60, 114, 0.9)' : 'rgba(0, 0, 0, 0.8)';
+  tooltip.style.color = 'white';
+  tooltip.style.padding = '6px 10px';
+  tooltip.style.borderRadius = '4px';
+  tooltip.style.fontSize = '12px';
+  tooltip.style.zIndex = '10000';
+  tooltip.style.pointerEvents = 'none';
+  tooltip.style.maxWidth = isPhrase ? '250px' : '200px';
+  tooltip.style.wordWrap = 'break-word';
+  
+  tooltip.innerHTML = `<strong>${isPhrase ? '词组' : '单词'}: ${word}</strong><br>${translation}`;
+  
+  document.body.appendChild(tooltip);
 }
 
 // Initialize phrase translation functionality

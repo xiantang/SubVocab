@@ -25,15 +25,17 @@ chrome.runtime.onInstalled.addListener(() => {
     } else if (request.action === 'addToWordList') {
       const word = request.word;
       const translation = request.translation || '';
+      const type = request.type || 'word'; // 默认为单词，可以是 'word' 或 'phrase'
       chrome.storage.local.get({ wordList: [] }, function(result) {
         const wordList = result.wordList;
-        if (!wordList.some(item => item.word.toLowerCase() === word.toLowerCase())) {
-          wordList.push({ word, familiarity: 0, translation });
+        // Check for duplicates considering both word and type
+        if (!wordList.some(item => item.word.toLowerCase() === word.toLowerCase() && (item.type || 'word') === type)) {
+          wordList.push({ word, familiarity: 0, translation, type });
           chrome.storage.local.set({ wordList }, () => {
             sendResponse({ success: true });
           });
         } else {
-          sendResponse({ success: false, message: '单词已存在' });
+          sendResponse({ success: false, message: type === 'phrase' ? '词组已存在' : '单词已存在' });
         }
       });
       return true; // 保持消息通道开放
@@ -44,9 +46,13 @@ chrome.runtime.onInstalled.addListener(() => {
       return true; // 保持消息通道开放
     } else if (request.action === 'removeFromWordList') {
       const wordToRemove = request.word;
+      const typeToRemove = request.type || 'word'; // 默认为单词
       chrome.storage.local.get({ wordList: [] }, function(result) {
         const wordList = result.wordList;
-        const updatedWordList = wordList.filter(item => item.word.toLowerCase() !== wordToRemove.toLowerCase());
+        // Remove considering both word and type
+        const updatedWordList = wordList.filter(item => 
+          !(item.word.toLowerCase() === wordToRemove.toLowerCase() && (item.type || 'word') === typeToRemove)
+        );
         chrome.storage.local.set({ wordList: updatedWordList }, () => {
           sendResponse({ success: true });
         });
