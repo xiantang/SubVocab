@@ -17,6 +17,18 @@ This file contains project-specific information for Claude Code.
 
 * use node -c <file> to validate grammar
 
+# test
+
+## Run all tests
+npm test
+
+## Run tests in watch mode (auto-rerun on file changes)
+npm run test:watch
+
+## Run tests with coverage report
+npm run test:coverage
+
+
 ## Common Commands
 <!-- Add frequently used commands for this project -->
 

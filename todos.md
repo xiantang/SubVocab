@@ -11,3 +11,4 @@
 
 ## Refactor
 - [x] 我希望将 content.js 文件进行拆分 openai 的部分拆出单独文件
+- [x] 添加单元测试 https://developer.chrome.com/docs/extensions/how-to/test/unit-testing

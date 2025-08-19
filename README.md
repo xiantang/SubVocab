@@ -57,12 +57,90 @@ A Chrome browser extension that helps you learn new words from YouTube videos by
 ```
 ├── manifest.json        # Extension configuration
 ├── content.js          # Main content script for YouTube integration
+├── openai-translator.js # OpenAI translation module
 ├── background.js       # Background service worker
 ├── popup.html          # Extension popup interface
 ├── popup.js           # Popup functionality
 ├── styles.css         # Styling for tooltips and highlights
+├── tests/              # Unit tests directory
+├── package.json        # Node.js dependencies
+├── jest.config.js      # Jest testing configuration
 └── README.md          # This file
 ```
+
+## Development & Testing
+
+### Prerequisites
+- Node.js and npm installed
+- Chrome browser for testing
+
+### Setup Development Environment
+
+1. **Install Dependencies**
+```bash
+npm install
+```
+
+2. **Available Scripts**
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode (auto-rerun on file changes)
+npm run test:watch
+
+# Run tests with coverage report
+npm run test:coverage
+```
+
+### Testing
+
+This project includes comprehensive unit tests using Jest:
+
+- **Background Script Tests** (`tests/background.test.js`)
+  - Context menu creation and handling
+  - Word list storage operations (add/remove/retrieve)
+  - Chrome storage integration
+  - Message passing between components
+  - Duplicate word detection
+
+- **Coverage**: Currently 80% code coverage for background.js
+
+#### Test Structure
+
+```
+tests/
+├── setup/
+│   ├── mock-extension-apis.js  # Chrome API mocks
+│   └── test-setup.js          # Test environment setup
+└── background.test.js         # Background script tests
+```
+
+#### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# View detailed coverage report
+npm run test:coverage
+
+# Watch mode for development
+npm run test:watch
+```
+
+#### Test Coverage Summary
+- Background Script: 80% coverage (context menus, storage, messaging)
+- Future tests planned for content.js, openai-translator.js, and popup.js
+
+### Code Quality
+
+The testing setup includes:
+- Chrome extension API mocking
+- DOM manipulation testing utilities
+- Async operation testing
+- Storage isolation between tests
+- Coverage reporting with thresholds
 
 ## Contributing
 

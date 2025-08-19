@@ -1,0 +1,21 @@
+{
+  "name": "newword",
+  "version": "1.0.0",
+  "description": "A Chrome browser extension that helps you learn new words from YouTube videos by collecting vocabulary from subtitles and building your personal word list.",
+  "main": "background.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/chrome": "^0.1.4",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
+    "jsdom": "^26.1.0"
+  }
+}
