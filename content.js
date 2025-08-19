@@ -1,5 +1,12 @@
+// Global flag to prevent multiple initializations
+let captionTextSelectionInitialized = false;
+
 // Enable caption text selection with modifier key dragging support
 function enableCaptionTextSelection() {
+  if (captionTextSelectionInitialized) {
+    console.log('Caption text selection already initialized, skipping...');
+    return;
+  }
   const style = document.createElement('style');
   style.textContent = `
     .ytp-caption-segment {
@@ -49,7 +56,7 @@ function enableCaptionTextSelection() {
   `;
   document.head.appendChild(style);
   
-  // Handle caption container with modifier key support
+  // Handle caption container with reliable modifier key detection
   const captionContainer = document.querySelector('.ytp-caption-window-container');
   if (captionContainer) {
     // Set container and all child elements as non-draggable by default
@@ -62,141 +69,98 @@ function enableCaptionTextSelection() {
     
     setNotDraggable(captionContainer);
     
-    // Precise mouse event handling with modifier key detection
+    // Simplified mouse event handling with real-time modifier key detection
     let isMouseDownOnCaption = false;
-    let isDragMode = false;
     let startX = 0;
     let startY = 0;
-    let lastMoveX = 0;
-    let lastMoveY = 0;
     
     // Function to check if modifier keys are pressed
     const hasModifierKey = (e) => {
       return e.altKey || e.ctrlKey || e.metaKey;
     };
     
-    // Update cursor and drag state based on modifier keys
-    const updateCursor = (e) => {
+    // Apply drag prevention settings reliably
+    const ensureDragPrevention = () => {
       const captionSegments = document.querySelectorAll('.ytp-caption-segment');
-      const hasModifier = hasModifierKey(e);
-      
       captionSegments.forEach(segment => {
-        if (hasModifier) {
-          segment.classList.add('drag-mode');
-          segment.classList.add('allow-drag');
-          segment.draggable = true;
-          segment.setAttribute('draggable', 'true');
-        } else {
-          segment.classList.remove('drag-mode');
-          segment.classList.remove('allow-drag');
-          segment.draggable = false;
-          segment.setAttribute('draggable', 'false');
-        }
+        segment.classList.remove('allow-drag');
+        segment.draggable = false;
+        segment.setAttribute('draggable', 'false');
       });
-      
-      // Also update the container
-      if (hasModifier) {
-        captionContainer.classList.add('allow-drag');
-        captionContainer.draggable = true;
-        captionContainer.setAttribute('draggable', 'true');
-      } else {
-        captionContainer.classList.remove('allow-drag');
-        captionContainer.draggable = false;
-        captionContainer.setAttribute('draggable', 'false');
-      }
+      captionContainer.classList.remove('allow-drag');
+      captionContainer.draggable = false;
+      captionContainer.setAttribute('draggable', 'false');
     };
     
-    // Listen for keydown/keyup to update cursor
-    document.addEventListener('keydown', updateCursor);
-    document.addEventListener('keyup', updateCursor);
-    
-    // Create separate event handlers for each mode
-    let textSelectionListeners = null;
-    let currentMode = 'text'; // 'text' or 'drag'
-    
-    // Text selection mousedown handler
-    const textSelectionMouseDown = function(e) {
+    // Unified mousedown handler with real-time modifier checking
+    const handleMouseDown = function(e) {
       if (e.target.closest('.ytp-caption-segment')) {
-        console.log('TEXT SELECTION MODE: Handling mousedown');
+        const hasModifier = hasModifierKey(e);
         
-        isMouseDownOnCaption = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        
-        // Block all default drag behavior
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        
-        // Start text selection
-        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-        if (range) {
-          const selection = window.getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          selection.collapseToStart();
+        if (hasModifier) {
+          // DRAG MODE: Allow default drag behavior
+          console.log('DRAG MODE: Enabling drag for this interaction');
+          
+          // Temporarily enable dragging for this interaction
+          const captionSegments = document.querySelectorAll('.ytp-caption-segment');
+          captionSegments.forEach(segment => {
+            segment.classList.add('allow-drag');
+            segment.classList.add('drag-mode');
+            segment.draggable = true;
+            segment.setAttribute('draggable', 'true');
+          });
+          captionContainer.classList.add('allow-drag');
+          captionContainer.draggable = true;
+          captionContainer.setAttribute('draggable', 'true');
+          
+          // Don't prevent default - allow dragging
+          return true;
+            
+        } else {
+          // TEXT SELECTION MODE: Handle text selection
+          console.log('TEXT SELECTION MODE: Handling text selection');
+          
+          isMouseDownOnCaption = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          
+          // Ensure dragging is disabled
+          ensureDragPrevention();
+          
+          // Block all default drag behavior
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          
+          // Start text selection
+          const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+          if (range) {
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            selection.collapseToStart();
+          }
+          
+          return false;
         }
-        
-        return false;
       }
     };
     
-    // Function to switch between modes
-    const switchToMode = (newMode) => {
-      if (currentMode === newMode) return;
-      
-      console.log('Switching from', currentMode, 'to', newMode);
-      
-      if (newMode === 'drag') {
-        // Remove text selection event listeners
-        captionContainer.removeEventListener('mousedown', textSelectionMouseDown, true);
-        
-        // Enable drag CSS and attributes
-        const captionSegments = document.querySelectorAll('.ytp-caption-segment');
-        captionSegments.forEach(segment => {
-          segment.classList.add('allow-drag');
-          segment.draggable = true;
-          segment.setAttribute('draggable', 'true');
-        });
-        captionContainer.classList.add('allow-drag');
-        captionContainer.draggable = true;
-        captionContainer.setAttribute('draggable', 'true');
-        
-      } else { // text mode
-        // Add text selection event listener
-        captionContainer.addEventListener('mousedown', textSelectionMouseDown, true);
-        
-        // Disable drag CSS and attributes
-        const captionSegments = document.querySelectorAll('.ytp-caption-segment');
-        captionSegments.forEach(segment => {
-          segment.classList.remove('allow-drag');
-          segment.draggable = false;
-          segment.setAttribute('draggable', 'false');
-        });
-        captionContainer.classList.remove('allow-drag');
-        captionContainer.draggable = false;
-        captionContainer.setAttribute('draggable', 'false');
-      }
-      
-      currentMode = newMode;
+    // Add the unified mousedown handler
+    captionContainer.addEventListener('mousedown', handleMouseDown, true);
+    
+    // Reset drag prevention after drag events to maintain text selection as default
+    const resetAfterDrag = () => {
+      setTimeout(ensureDragPrevention, 100);
     };
     
-    // Monitor keyboard state and switch modes
-    const keyboardHandler = (e) => {
-      const shouldBeDragMode = hasModifierKey(e);
-      switchToMode(shouldBeDragMode ? 'drag' : 'text');
-    };
+    captionContainer.addEventListener('dragend', resetAfterDrag);
+    captionContainer.addEventListener('drop', resetAfterDrag);
     
-    document.addEventListener('keydown', keyboardHandler);
-    document.addEventListener('keyup', keyboardHandler);
-    
-    // Initialize in text selection mode
-    switchToMode('text');
-    
-    // Handle mousemove - only intercept in text selection mode
+    // Handle mousemove - only intercept during text selection
     document.addEventListener('mousemove', function(e) {
-      // Only handle if we're in text selection mode and mouse is down
-      if (isMouseDownOnCaption && currentMode === 'text') {
+      // Only handle if we're doing text selection (mouse is down on caption without modifier)
+      if (isMouseDownOnCaption) {
         // Text selection mode - manually implement text selection
         console.log('Manual text selection handling');
         
@@ -236,19 +200,16 @@ function enableCaptionTextSelection() {
           console.log('Error in manual selection:', error);
         }
         
-        lastMoveX = e.clientX;
-        lastMoveY = e.clientY;
         return false;
       }
-      // If not in text selection mode, don't interfere at all
     }, { capture: true, passive: false });
     
-    // Handle mouseup event - only intercept in text selection mode
+    // Handle mouseup event - only intercept during text selection
     document.addEventListener('mouseup', function(e) {
-      if (isMouseDownOnCaption && currentMode === 'text') {
-        console.log('Mouse up in text selection mode, resetting state');
+      if (isMouseDownOnCaption) {
+        console.log('Mouse up during text selection, resetting state');
         
-        // Only prevent default behavior in text selection mode
+        // Only prevent default behavior during text selection
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -257,48 +218,77 @@ function enableCaptionTextSelection() {
         return false;
       }
       
-      // Reset state regardless
+      // Always reset state on mouseup
       isMouseDownOnCaption = false;
     }, { capture: true });
     
-    // Simple drag event prevention - only block in text selection mode
-    const preventDragInTextMode = function(e) {
-      if (e.target.closest('.ytp-caption-window-container') && currentMode === 'text') {
-        console.log('TEXT SELECTION MODE: Preventing drag event:', e.type);
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        return false;
+    // Enhanced drag event prevention - block unless explicitly allowed
+    const preventUnwantedDrag = function(e) {
+      const target = e.target.closest('.ytp-caption-window-container');
+      if (target) {
+        // Only allow drag if we have explicit allow-drag class (modifier key was pressed)
+        if (!target.classList.contains('allow-drag') && 
+            !target.querySelector('.allow-drag')) {
+          console.log('DRAG PREVENTION: Blocking drag event:', e.type);
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          return false;
+        }
       }
-      // In drag mode, don't interfere at all
     };
     
     const dragEvents = ['dragstart', 'drag', 'dragend', 'dragover', 'dragenter', 'dragleave', 'drop'];
     dragEvents.forEach(eventType => {
-      document.addEventListener(eventType, preventDragInTextMode, { capture: true, passive: false });
+      document.addEventListener(eventType, preventUnwantedDrag, { capture: true, passive: false });
     });
     
-    // Use MutationObserver to handle newly added elements based on current mode
-    const dragObserver = new MutationObserver(mutations => {
+    // Use MutationObserver to ensure drag prevention on new elements
+    const captionObserver = new MutationObserver(mutations => {
       mutations.forEach(mutation => {
         mutation.addedNodes.forEach(node => {
-          if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('ytp-caption-segment')) {
-            // Apply current mode settings to new elements
-            if (currentMode === 'drag') {
-              node.classList.add('allow-drag');
-              node.draggable = true;
-              node.setAttribute('draggable', 'true');
-            } else {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            // Apply drag prevention to any new caption elements
+            if (node.classList.contains('ytp-caption-segment')) {
               node.classList.remove('allow-drag');
               node.draggable = false;
               node.setAttribute('draggable', 'false');
             }
+            // Also check child elements
+            const childSegments = node.querySelectorAll('.ytp-caption-segment');
+            childSegments.forEach(segment => {
+              segment.classList.remove('allow-drag');
+              segment.draggable = false;
+              segment.setAttribute('draggable', 'false');
+            });
           }
         });
       });
     });
     
-    dragObserver.observe(captionContainer, { childList: true, subtree: true });
+    captionObserver.observe(captionContainer, { childList: true, subtree: true });
+    
+    // Add periodic state recovery to prevent YouTube from overriding our settings
+    const stateRecoveryInterval = setInterval(() => {
+      // Check if caption container still exists
+      const container = document.querySelector('.ytp-caption-window-container');
+      if (!container) {
+        clearInterval(stateRecoveryInterval);
+        return;
+      }
+      
+      // Ensure drag prevention is still active
+      ensureDragPrevention();
+      
+      // Re-check every 5 seconds only if the page is still on YouTube with captions
+      if (!location.hostname.includes('youtube.com')) {
+        clearInterval(stateRecoveryInterval);
+      }
+    }, 5000);
+    
+    // Mark as initialized
+    captionTextSelectionInitialized = true;
+    console.log('Caption text selection system initialized successfully');
   }
 }
 
@@ -695,6 +685,8 @@ let lastUrl = location.href;
 const urlObserver = new MutationObserver(() => {
   if (location.href !== lastUrl) {
     lastUrl = location.href;
+    // Reset initialization flag for new page
+    captionTextSelectionInitialized = false;
     setTimeout(() => {
       enableCaptionTextSelection(); // 重新启用文本选择
       addDragPreventionToNewCaptions(); // 为新页面字幕添加拖拽阻止
@@ -719,10 +711,7 @@ function observeCaptions() {
   const captionsContainer = document.querySelector('.ytp-caption-window-container');
   if (captionsContainer) {
     const observer = new MutationObserver(() => {
-      // 重新启用文本选择（防止YouTube更新后被覆盖）
-      enableCaptionTextSelection();
-      
-      // 为新出现的字幕元素添加拖拽阻止
+      // Only apply drag prevention to new elements (enableCaptionTextSelection is handled separately)
       setTimeout(() => {
         addDragPreventionToNewCaptions();
       }, 50);
