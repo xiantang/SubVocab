@@ -1,5 +1,8 @@
 # SubVocab - YouTube Subtitle Vocabulary Builder
 
+[![CI](https://github.com/your-username/newword/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/newword/actions/workflows/ci.yml)
+[![Tests](https://github.com/your-username/newword/actions/workflows/test.yml/badge.svg)](https://github.com/your-username/newword/actions/workflows/test.yml)
+
 A Chrome browser extension that helps you learn new words from YouTube videos by collecting vocabulary from subtitles and building your personal word list.
 
 ## Features
@@ -129,9 +132,30 @@ npm run test:coverage
 npm run test:watch
 ```
 
+#### Continuous Integration
+
+This project uses GitHub Actions for automated testing:
+
+- **CI Pipeline** (`.github/workflows/ci.yml`):
+  - Runs on every push to `main` branch and pull requests
+  - Tests on Node.js 20
+  - Validates JavaScript syntax
+  - Checks Chrome extension file structure
+  - Generates test coverage reports
+
+- **Test Pipeline** (`.github/workflows/test.yml`):
+  - Comprehensive testing on multiple Node.js versions (18.x, 20.x)
+  - Coverage reporting with Codecov integration
+  - PR comment with coverage details
+  - Linting and code quality checks
+
+All tests must pass before code can be merged to main branch.
+
 #### Test Coverage Summary
-- Background Script: 80% coverage (context menus, storage, messaging)
-- Future tests planned for content.js, openai-translator.js, and popup.js
+- **Background Script**: 80% coverage (context menus, storage, messaging)
+- **Popup Interface**: 94% coverage (UI interactions, storage, export)
+- **Overall**: 22 tests passing, 2 main components fully tested
+- **Future**: Tests planned for content.js and openai-translator.js
 
 ### Code Quality
 

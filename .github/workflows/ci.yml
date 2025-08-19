@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run unit tests
+      run: npm test
+
+    - name: Generate coverage report
+      run: npm run test:coverage
+
+    - name: Validate JavaScript syntax
+      run: |
+        echo "Validating JavaScript syntax..."
+        node -c background.js
+        node -c content.js  
+        node -c popup.js
+        node -c openai-translator.js
+        echo "✅ All JavaScript files are valid"
+
+  build-check:
+    name: Build Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Check extension structure
+      run: |
+        echo "Checking Chrome extension structure..."
+        
+        # Check required files exist
+        required_files=("manifest.json" "background.js" "content.js" "popup.html" "popup.js")
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "❌ Missing required file: $file"
+            exit 1
+          else
+            echo "✅ Found: $file"
+          fi
+        done
+        
+        # Validate manifest.json
+        if command -v jq >/dev/null 2>&1; then
+          echo "Validating manifest.json..."
+          jq empty manifest.json && echo "✅ manifest.json is valid JSON"
+        fi
+        
+        echo "🎉 Extension structure validation complete"
