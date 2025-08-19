@@ -12,6 +12,11 @@ This file contains project-specific information for Claude Code.
 * 不要激进重构, 不要 break 之前的行为, 如果要重构就小步重构，渐进式改进
 * 尽量保证复用
 
+
+# Validation
+
+* use node -c <file> to validate grammar
+
 ## Common Commands
 <!-- Add frequently used commands for this project -->
 

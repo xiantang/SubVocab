@@ -424,6 +424,9 @@ function showRemoveConfirmation(word, x, y) {
 
   document.body.appendChild(tooltip);
 
+  // Add hover pause functionality
+  addTooltipHoverPause(tooltip);
+
   document.getElementById(`removeBtn_${uniqueId}`).addEventListener('click', function() {
     removeFromWordList(word);
     if (document.body.contains(tooltip)) {
@@ -543,6 +546,9 @@ function showTooltip(word, translation, x, y) {
   `;
 
   document.body.appendChild(tooltip);
+
+  // Add hover pause functionality
+  addTooltipHoverPause(tooltip);
 
   document.getElementById(`addBtn_${uniqueId}`).addEventListener('click', function() {
     chrome.runtime.sendMessage({ 
@@ -981,6 +987,42 @@ function setupCaptionHoverPause(retryCount = 0) {
   }
 }
 
+// Add hover pause functionality to tooltips
+function addTooltipHoverPause(tooltip) {
+  let tooltipHoverTimeout = null;
+  let wasPlayingBeforeTooltipHover = false;
+  
+  tooltip.addEventListener('mouseenter', function() {
+    console.log('Mouse entered tooltip, preparing to pause video');
+    // Delay pause to avoid flicker on quick mouse movements
+    tooltipHoverTimeout = setTimeout(() => {
+      const video = document.querySelector('video');
+      if (video && !video.paused) {
+        wasPlayingBeforeTooltipHover = true;
+        video.pause();
+        console.log('Tooltip hover: Video paused');
+      }
+    }, 200); // 200ms delay
+  });
+
+  tooltip.addEventListener('mouseleave', function() {
+    console.log('Mouse left tooltip, resuming video if needed');
+    // Clear delay pause timeout
+    if (tooltipHoverTimeout) {
+      clearTimeout(tooltipHoverTimeout);
+      tooltipHoverTimeout = null;
+    }
+    
+    // Resume video if it was playing before
+    const video = document.querySelector('video');
+    if (video && wasPlayingBeforeTooltipHover) {
+      video.play();
+      wasPlayingBeforeTooltipHover = false;
+      console.log('Tooltip leave: Video resumed');
+    }
+  });
+}
+
 // Phrase translation functionality
 function setupPhraseTranslation() {
   // Listen for text selection changes
@@ -1194,6 +1236,9 @@ function showPhraseTranslationPopup(phrase, translation, x, y) {
     `;
 
     document.body.appendChild(popup);
+
+    // Add hover pause functionality
+    addTooltipHoverPause(popup);
 
     // Add button functionality
     if (isInWordList) {
