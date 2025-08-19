@@ -396,6 +396,7 @@ function showRemoveConfirmation(word, x, y) {
   // 移除已存在的确认框
   const existingTooltip = document.querySelector('.remove-confirmation-tooltip');
   if (existingTooltip) {
+    cleanupTooltipVideoState();
     document.body.removeChild(existingTooltip);
   }
 
@@ -428,6 +429,7 @@ function showRemoveConfirmation(word, x, y) {
   addTooltipHoverPause(tooltip);
 
   document.getElementById(`removeBtn_${uniqueId}`).addEventListener('click', function() {
+    cleanupTooltipVideoState();
     removeFromWordList(word);
     if (document.body.contains(tooltip)) {
       document.body.removeChild(tooltip);
@@ -435,6 +437,7 @@ function showRemoveConfirmation(word, x, y) {
   });
 
   document.getElementById(`cancelBtn_${uniqueId}`).addEventListener('click', function() {
+    cleanupTooltipVideoState();
     if (document.body.contains(tooltip)) {
       document.body.removeChild(tooltip);
     }
@@ -443,6 +446,7 @@ function showRemoveConfirmation(word, x, y) {
   // 点击其他地方关闭tooltip
   const closeHandler = function(event) {
     if (!tooltip.contains(event.target)) {
+      cleanupTooltipVideoState();
       if (document.body.contains(tooltip)) {
         document.body.removeChild(tooltip);
       }
@@ -457,6 +461,7 @@ function showRemoveConfirmation(word, x, y) {
   // 5秒后自动关闭
   setTimeout(() => {
     if (document.body.contains(tooltip)) {
+      cleanupTooltipVideoState();
       document.body.removeChild(tooltip);
       document.removeEventListener('click', closeHandler);
     }
@@ -519,6 +524,7 @@ function showTooltip(word, translation, x, y) {
   // 移除已存在的翻译框
   const existingTooltip = document.querySelector('.translation-tooltip');
   if (existingTooltip) {
+    cleanupTooltipVideoState();
     document.body.removeChild(existingTooltip);
   }
 
@@ -551,6 +557,7 @@ function showTooltip(word, translation, x, y) {
   addTooltipHoverPause(tooltip);
 
   document.getElementById(`addBtn_${uniqueId}`).addEventListener('click', function() {
+    cleanupTooltipVideoState();
     chrome.runtime.sendMessage({ 
       action: 'addToWordList', 
       word: word, 
@@ -565,6 +572,7 @@ function showTooltip(word, translation, x, y) {
   });
 
   document.getElementById(`cancelAddBtn_${uniqueId}`).addEventListener('click', function() {
+    cleanupTooltipVideoState();
     if (document.body.contains(tooltip)) {
       document.body.removeChild(tooltip);
     }
@@ -573,6 +581,7 @@ function showTooltip(word, translation, x, y) {
   // 点击其他地方关闭tooltip
   const closeHandler = function(event) {
     if (!tooltip.contains(event.target)) {
+      cleanupTooltipVideoState();
       if (document.body.contains(tooltip)) {
         document.body.removeChild(tooltip);
       }
@@ -587,6 +596,7 @@ function showTooltip(word, translation, x, y) {
   // 5秒后自动关闭
   setTimeout(() => {
     if (document.body.contains(tooltip)) {
+      cleanupTooltipVideoState();
       document.body.removeChild(tooltip);
       document.removeEventListener('click', closeHandler);
     }
@@ -671,6 +681,9 @@ const urlObserver = new MutationObserver(() => {
     
     // Clean up hover pause state for old page
     cleanupHoverPauseState();
+    
+    // Clean up tooltip video state for old page
+    cleanupTooltipVideoState();
     
     setTimeout(() => {
       enableCaptionTextSelection(); // 重新启用文本选择和悬停暂停
@@ -896,6 +909,10 @@ let hoverEventListeners = {
   mouseleave: null
 };
 
+// Global tooltip video pause state management
+let wasPlayingBeforeTooltipHover = false;
+let tooltipHoverTimeout = null;
+
 // Cleanup function for hover pause state
 function cleanupHoverPauseState() {
   console.log('Cleaning up hover pause state');
@@ -926,6 +943,27 @@ function cleanupHoverPauseState() {
   
   hoverEventListeners.mouseenter = null;
   hoverEventListeners.mouseleave = null;
+}
+
+// Cleanup function for tooltip video pause state
+function cleanupTooltipVideoState() {
+  console.log('Cleaning up tooltip video state');
+  
+  // Clear any pending timeout
+  if (tooltipHoverTimeout) {
+    clearTimeout(tooltipHoverTimeout);
+    tooltipHoverTimeout = null;
+  }
+  
+  // Resume video if it was playing before tooltip hover
+  if (wasPlayingBeforeTooltipHover) {
+    const video = document.querySelector('video');
+    if (video && video.paused) {
+      video.play();
+      console.log('Resumed video after tooltip cleanup');
+    }
+    wasPlayingBeforeTooltipHover = false;
+  }
 }
 
 // Robust hover pause setup function
@@ -989,11 +1027,14 @@ function setupCaptionHoverPause(retryCount = 0) {
 
 // Add hover pause functionality to tooltips
 function addTooltipHoverPause(tooltip) {
-  let tooltipHoverTimeout = null;
-  let wasPlayingBeforeTooltipHover = false;
-  
   tooltip.addEventListener('mouseenter', function() {
     console.log('Mouse entered tooltip, preparing to pause video');
+    // Clear any existing timeout first
+    if (tooltipHoverTimeout) {
+      clearTimeout(tooltipHoverTimeout);
+      tooltipHoverTimeout = null;
+    }
+    
     // Delay pause to avoid flicker on quick mouse movements
     tooltipHoverTimeout = setTimeout(() => {
       const video = document.querySelector('video');
@@ -1006,20 +1047,8 @@ function addTooltipHoverPause(tooltip) {
   });
 
   tooltip.addEventListener('mouseleave', function() {
-    console.log('Mouse left tooltip, resuming video if needed');
-    // Clear delay pause timeout
-    if (tooltipHoverTimeout) {
-      clearTimeout(tooltipHoverTimeout);
-      tooltipHoverTimeout = null;
-    }
-    
-    // Resume video if it was playing before
-    const video = document.querySelector('video');
-    if (video && wasPlayingBeforeTooltipHover) {
-      video.play();
-      wasPlayingBeforeTooltipHover = false;
-      console.log('Tooltip leave: Video resumed');
-    }
+    console.log('Mouse left tooltip, calling cleanup');
+    cleanupTooltipVideoState();
   });
 }
 
@@ -1139,6 +1168,7 @@ function clearTranslationTimer() {
 
 function hideTranslationPopup() {
   if (translationPopup && document.body.contains(translationPopup)) {
+    cleanupTooltipVideoState();
     document.body.removeChild(translationPopup);
     translationPopup = null;
   }
@@ -1243,11 +1273,13 @@ function showPhraseTranslationPopup(phrase, translation, x, y) {
     // Add button functionality
     if (isInWordList) {
       document.getElementById(`removePhraseBtn_${uniqueId}`).addEventListener('click', function() {
+        cleanupTooltipVideoState();
         removePhraseFromWordList(phrase);
         hideTranslationPopup();
       });
     } else {
       document.getElementById(`addPhraseBtn_${uniqueId}`).addEventListener('click', function() {
+        cleanupTooltipVideoState();
         addPhraseToWordList(phrase, translation);
         hideTranslationPopup();
       });
@@ -1255,18 +1287,21 @@ function showPhraseTranslationPopup(phrase, translation, x, y) {
 
     // Add close button functionality
     document.getElementById(`closeBtn_${uniqueId}`).addEventListener('click', function() {
+      cleanupTooltipVideoState();
       hideTranslationPopup();
     });
   });
 
   // Auto-close after 10 seconds (extended for phrase actions)
   setTimeout(() => {
+    cleanupTooltipVideoState();
     hideTranslationPopup();
   }, 10000);
 
   // Close when clicking outside
   const outsideClickHandler = function(event) {
     if (popup && !popup.contains(event.target)) {
+      cleanupTooltipVideoState();
       hideTranslationPopup();
       document.removeEventListener('click', outsideClickHandler);
     }
