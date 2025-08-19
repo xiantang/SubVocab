@@ -243,11 +243,18 @@ function enableCaptionTextSelection() {
       document.addEventListener(eventType, preventUnwantedDrag, { capture: true, passive: false });
     });
     
-    // Use MutationObserver to ensure drag prevention on new elements
+    // Use MutationObserver to ensure drag prevention and hover pause on new elements
     const captionObserver = new MutationObserver(mutations => {
+      let containerRecreated = false;
+      
       mutations.forEach(mutation => {
         mutation.addedNodes.forEach(node => {
           if (node.nodeType === Node.ELEMENT_NODE) {
+            // Check if caption container was recreated
+            if (node.classList.contains('ytp-caption-window-container')) {
+              containerRecreated = true;
+            }
+            
             // Apply drag prevention to any new caption elements
             if (node.classList.contains('ytp-caption-segment')) {
               node.classList.remove('allow-drag');
@@ -264,9 +271,19 @@ function enableCaptionTextSelection() {
           }
         });
       });
+      
+      // If container was recreated, reinitialize hover pause
+      if (containerRecreated) {
+        console.log('检测到字幕容器重新创建，重新初始化悬停暂停');
+        hoverPauseInitialized = false;
+        setTimeout(() => setupCaptionHoverPause(), 100);
+      }
     });
     
     captionObserver.observe(captionContainer, { childList: true, subtree: true });
+    
+    // Initialize hover pause functionality
+    setupCaptionHoverPause();
     
     // Add periodic state recovery to prevent YouTube from overriding our settings
     const stateRecoveryInterval = setInterval(() => {
@@ -274,15 +291,23 @@ function enableCaptionTextSelection() {
       const container = document.querySelector('.ytp-caption-window-container');
       if (!container) {
         clearInterval(stateRecoveryInterval);
+        cleanupHoverPauseState(); // Clean up hover pause state too
         return;
       }
       
       // Ensure drag prevention is still active
       ensureDragPrevention();
       
+      // Ensure hover pause is still active
+      if (!hoverPauseInitialized || !hoverEventListeners.mouseenter) {
+        console.log('恢复字幕悬停暂停功能');
+        setupCaptionHoverPause();
+      }
+      
       // Re-check every 5 seconds only if the page is still on YouTube with captions
       if (!location.hostname.includes('youtube.com')) {
         clearInterval(stateRecoveryInterval);
+        cleanupHoverPauseState();
       }
     }, 5000);
     
@@ -685,10 +710,17 @@ let lastUrl = location.href;
 const urlObserver = new MutationObserver(() => {
   if (location.href !== lastUrl) {
     lastUrl = location.href;
-    // Reset initialization flag for new page
+    console.log('页面导航检测到，重置字幕功能');
+    
+    // Reset initialization flags for new page
     captionTextSelectionInitialized = false;
+    hoverPauseInitialized = false;
+    
+    // Clean up hover pause state for old page
+    cleanupHoverPauseState();
+    
     setTimeout(() => {
-      enableCaptionTextSelection(); // 重新启用文本选择
+      enableCaptionTextSelection(); // 重新启用文本选择和悬停暂停
       addDragPreventionToNewCaptions(); // 为新页面字幕添加拖拽阻止
       initializeHighlights();
     }, 2000); // 等待新页面加载
@@ -902,14 +934,61 @@ let currentSelection = null;
 let translationPopup = null;
 let selectionBounds = null;
 
-// YouTube视频暂停/恢复功能
+// YouTube视频暂停/恢复功能 - Enhanced state management
 let wasPlayingBeforeHover = false;
 let hoverPauseTimeout = null;
+let hoverPauseInitialized = false;
+let hoverEventListeners = {
+  mouseenter: null,
+  mouseleave: null
+};
 
-function setupCaptionHoverPause() {
+// Cleanup function for hover pause state
+function cleanupHoverPauseState() {
+  console.log('Cleaning up hover pause state');
+  
+  // Clear any pending timeout
+  if (hoverPauseTimeout) {
+    clearTimeout(hoverPauseTimeout);
+    hoverPauseTimeout = null;
+  }
+  
+  // Resume video if it was paused by hover
+  if (wasPlayingBeforeHover) {
+    const video = document.querySelector('video');
+    if (video && video.paused) {
+      video.play();
+      console.log('恢复视频播放（清理状态时）');
+    }
+    wasPlayingBeforeHover = false;
+  }
+  
+  // Remove event listeners from old container
+  const oldContainer = document.querySelector('.ytp-caption-window-container');
+  if (oldContainer && hoverEventListeners.mouseenter) {
+    oldContainer.removeEventListener('mouseenter', hoverEventListeners.mouseenter);
+    oldContainer.removeEventListener('mouseleave', hoverEventListeners.mouseleave);
+    console.log('移除旧的悬停事件监听器');
+  }
+  
+  hoverEventListeners.mouseenter = null;
+  hoverEventListeners.mouseleave = null;
+}
+
+// Robust hover pause setup function
+function setupCaptionHoverPause(retryCount = 0) {
+  const maxRetries = 5;
+  
+  console.log(`设置字幕悬停暂停功能 (尝试 ${retryCount + 1}/${maxRetries})`);
+  
   const captionsContainer = document.querySelector('.ytp-caption-window-container');
   if (captionsContainer) {
-    captionsContainer.addEventListener('mouseenter', function() {
+    // Clean up any existing state first
+    cleanupHoverPauseState();
+    
+    // Create new event listeners
+    hoverEventListeners.mouseenter = function() {
+      console.log('鼠标进入字幕区域');
       // 延迟暂停，避免快速划过时暂停
       hoverPauseTimeout = setTimeout(() => {
         const video = document.querySelector('video');
@@ -919,9 +998,10 @@ function setupCaptionHoverPause() {
           console.log('字幕悬停：视频已暂停');
         }
       }, 200); // 200ms延迟
-    });
+    };
 
-    captionsContainer.addEventListener('mouseleave', function() {
+    hoverEventListeners.mouseleave = function() {
+      console.log('鼠标离开字幕区域');
       // 清除延迟暂停的timeout
       if (hoverPauseTimeout) {
         clearTimeout(hoverPauseTimeout);
@@ -935,17 +1015,24 @@ function setupCaptionHoverPause() {
         wasPlayingBeforeHover = false;
         console.log('字幕离开：视频已恢复播放');
       }
-    });
+    };
     
-    console.log('字幕悬停暂停功能已启用');
+    // Add event listeners to the container
+    captionsContainer.addEventListener('mouseenter', hoverEventListeners.mouseenter);
+    captionsContainer.addEventListener('mouseleave', hoverEventListeners.mouseleave);
+    
+    hoverPauseInitialized = true;
+    console.log('字幕悬停暂停功能已成功启用');
+    
+  } else if (retryCount < maxRetries) {
+    // Exponential backoff retry
+    const delay = Math.pow(2, retryCount) * 500; // 500ms, 1s, 2s, 4s, 8s
+    console.log(`字幕容器未找到，${delay}ms 后重试...`);
+    setTimeout(() => setupCaptionHoverPause(retryCount + 1), delay);
   } else {
-    // 如果字幕容器还不存在，稍后再试
-    setTimeout(setupCaptionHoverPause, 1000);
+    console.warn('字幕容器未找到，已达到最大重试次数');
   }
 }
-
-// 启动字幕悬停暂停功能
-setupCaptionHoverPause();
 
 // Phrase translation functionality
 function setupPhraseTranslation() {
