@@ -485,63 +485,10 @@ function getSentenceContext(textContent, wordStart, wordEnd) {
 }
 
 function translateWordWithContext(word, sentence, x, y) {
-  // 首先检查是否有OpenAI API Key
-  chrome.storage.local.get({ openaiApiKey: '' }, function(result) {
-    if (result.openaiApiKey) {
-      // 使用OpenAI翻译
-      translateWithOpenAI(word, sentence, x, y);
-    } else {
-      // 回退到原来的翻译方式
-      translateWord(word, x, y);
-    }
-  });
+  // Check if OpenAI is available and use it, otherwise fallback
+  openAITranslator.translateWord(word, sentence, x, y, showTooltip, translateWord);
 }
 
-async function translateWithOpenAI(word, sentence, x, y) {
-  chrome.storage.local.get({ openaiApiKey: '' }, async function(result) {
-    const apiKey = result.openaiApiKey;
-    
-    try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: '你是一个专业的英语翻译助手。请根据给定的句子语境，为指定的英文单词提供最准确的中文翻译。只需要返回翻译结果，不需要其他解释。'
-            },
-            {
-              role: 'user',
-              content: `请翻译句子"${sentence}"中的单词"${word}"。只返回中文翻译，不要其他内容。`
-            }
-          ],
-          max_tokens: 100,
-          temperature: 0.3
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const translation = data.choices[0].message.content.trim();
-        console.log("openai translation: " + translation)
-        showTooltip(word, translation, x, y);
-      } else {
-        console.error('OpenAI API请求失败:', response.status);
-        // 回退到原来的翻译方式
-        translateWord(word, x, y);
-      }
-    } catch (error) {
-      console.error('OpenAI翻译失败:', error);
-      // 回退到原来的翻译方式
-      translateWord(word, x, y);
-    }
-  });
-}
 
 function translateWord(word, x, y) {
   const apiUrl = `https://api.mymemory.translated.net/get?q=${word}&langpair=en|zh-CN`;
@@ -1161,16 +1108,8 @@ function translateSelectedPhrase(phrase, rect) {
   // Get sentence context for better translation
   const fullContext = getFullCaptionContext();
   
-  // Use existing translation function with context
-  chrome.storage.local.get({ openaiApiKey: '' }, function(result) {
-    if (result.openaiApiKey) {
-      // Use OpenAI translation for phrases
-      translatePhraseWithOpenAI(phrase, fullContext, rect.left + rect.width/2, rect.bottom + 10);
-    } else {
-      // Fallback to basic translation
-      translatePhraseBasic(phrase, rect.left + rect.width/2, rect.bottom + 10);
-    }
-  });
+  // Use OpenAI translation for phrases with fallback
+  openAITranslator.translatePhrase(phrase, fullContext, rect.left + rect.width/2, rect.bottom + 10, showPhraseTranslationPopup, translatePhraseBasic);
 }
 
 function getFullCaptionContext() {
@@ -1187,49 +1126,6 @@ function getFullCaptionContext() {
   return context.trim();
 }
 
-async function translatePhraseWithOpenAI(phrase, context, x, y) {
-  chrome.storage.local.get({ openaiApiKey: '' }, async function(result) {
-    const apiKey = result.openaiApiKey;
-    
-    try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: '你是一个专业的英语翻译助手。请根据给定的句子语境，为指定的英文短语或句子提供最准确的中文翻译。只需要返回翻译结果，不需要其他解释。'
-            },
-            {
-              role: 'user',
-              content: `请翻译以下英文短语或句子："${phrase}"。\n\n语境：${context}\n\n只返回中文翻译，不要其他内容。`
-            }
-          ],
-          max_tokens: 150,
-          temperature: 0.3
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const translation = data.choices[0].message.content.trim();
-        console.log("OpenAI phrase translation:", translation);
-        showPhraseTranslationPopup(phrase, translation, x, y);
-      } else {
-        console.error('OpenAI API请求失败:', response.status);
-        translatePhraseBasic(phrase, x, y);
-      }
-    } catch (error) {
-      console.error('OpenAI翻译失败:', error);
-      translatePhraseBasic(phrase, x, y);
-    }
-  });
-}
 
 function translatePhraseBasic(phrase, x, y) {
   const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(phrase)}&langpair=en|zh-CN`;
