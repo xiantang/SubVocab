@@ -621,8 +621,8 @@ function removeHighlight(word) {
   for (let element of elements) {
     const highlightedSpans = element.querySelectorAll(`span[style*="background-color: #FFD700;"]`);
     highlightedSpans.forEach(span => {
-      if (span.textContent === word) {
-        const textNode = document.createTextNode(word);
+      if (span.textContent.toLowerCase() === word.toLowerCase()) {
+        const textNode = document.createTextNode(span.textContent);
         span.parentNode.replaceChild(textNode, span);
       }
     });
@@ -772,7 +772,7 @@ function highlightWord(word) {
     const currentHTML = element.innerHTML;
     const text = element.innerText;
     
-    if (text.includes(word)) {
+    if (text.toLowerCase().includes(word.toLowerCase())) {
       // 创建一个临时div来处理HTML内容
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = currentHTML;
@@ -781,10 +781,10 @@ function highlightWord(word) {
       const textNodes = getTextNodes(tempDiv);
       textNodes.forEach(textNode => {
         const nodeText = textNode.textContent;
-        if (nodeText.includes(word)) {
-          const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        if (nodeText.toLowerCase().includes(word.toLowerCase())) {
+          const regex = new RegExp(`\\b(${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
           if (regex.test(nodeText)) {
-            const newHTML = nodeText.replace(regex, `<span style="background-color: #FFD700; user-select: text; -webkit-user-select: text;" data-word="${word}" class="highlighted-word">${word}</span>`);
+            const newHTML = nodeText.replace(regex, `<span style="background-color: #FFD700; user-select: text; -webkit-user-select: text;" data-word="${word}" class="highlighted-word">$1</span>`);
             const newElement = document.createElement('span');
             newElement.innerHTML = newHTML;
             textNode.parentNode.insertBefore(newElement, textNode);
